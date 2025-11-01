@@ -19,7 +19,7 @@ import { toast } from 'react-toastify';
 
 const MultiStepAccountForm = ({ onAccountCreated }) => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedPlatform, setSelectedPlatform] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState('roblox');
   const [platformConfig, setPlatformConfig] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -216,7 +216,7 @@ const MultiStepAccountForm = ({ onAccountCreated }) => {
       // Reset form
       setCurrentStep(0);
       setFormData({});
-      setSelectedPlatform('');
+      setSelectedPlatform('roblox');
       if (onAccountCreated) onAccountCreated();
     } catch (error) {
       toast.error('Error creating account: ' + (error.response?.data?.message || error.message));
@@ -342,6 +342,9 @@ const MultiStepAccountForm = ({ onAccountCreated }) => {
                   onPlatformChange={handlePlatformChange}
                   selectedPlatform={selectedPlatform}
                 />
+                <p className="mt-2 text-xs text-dark-400">
+                  Only Roblox is supported at this time. Other platforms are disabled by policy.
+                </p>
               </motion.div>
             )}
 

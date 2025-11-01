@@ -5,7 +5,7 @@ import { accountService } from '../../services/accountService';
 import PlatformSelector from './PlatformSelector';
 
 const AutoAccountCreator = ({ onAccountCreated }) => {
-  const [selectedPlatform, setSelectedPlatform] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState('roblox');
   const [count, setCount] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -81,7 +81,7 @@ const AutoAccountCreator = ({ onAccountCreated }) => {
         }
         
         // Reset form
-        setSelectedPlatform('');
+        setSelectedPlatform('roblox');
         setCount(1);
         setOptions({
           ageRange: { min: 18, max: 65 },
@@ -158,6 +158,9 @@ const AutoAccountCreator = ({ onAccountCreated }) => {
             onPlatformChange={handlePlatformChange}
             selectedPlatform={selectedPlatform}
           />
+          <p className="mt-2 text-xs text-dark-400">
+            Only Roblox is supported at this time. Other platforms are disabled by policy.
+          </p>
         </motion.div>
 
         <motion.div variants={itemVariants}>
@@ -179,7 +182,7 @@ const AutoAccountCreator = ({ onAccountCreated }) => {
             </div>
           </div>
           <p className="text-xs text-dark-400 mt-1">
-            Create up to 10 accounts at once
+            Create up to 10 accounts at once. Roblox only.
           </p>
         </motion.div>
 

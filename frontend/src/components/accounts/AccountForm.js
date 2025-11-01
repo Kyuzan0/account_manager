@@ -10,7 +10,7 @@ import { accountService } from '../../services/accountService';
 import { toast } from 'react-toastify';
 
 const AccountForm = ({ onAccountCreated }) => {
-  const [selectedPlatform, setSelectedPlatform] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState('roblox');
   const [platformConfig, setPlatformConfig] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -141,7 +141,7 @@ const AccountForm = ({ onAccountCreated }) => {
       // Reset form
       setValue('username', '');
       setValue('password', '');
-      setSelectedPlatform('');
+      setSelectedPlatform('roblox');
       if (onAccountCreated) onAccountCreated();
     } catch (error) {
       console.error('DEBUG: Error creating account:', error);

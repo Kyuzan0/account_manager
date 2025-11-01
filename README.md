@@ -18,6 +18,9 @@ A comprehensive web application for managing accounts across multiple platforms 
 - **Data Import/Export**: Support for CSV and Excel file formats
 - **Responsive Design**: Mobile-optimized interface with Tailwind CSS
 - **Real-time Updates**: Live activity feeds and notifications
+- **Auto Account Creation**: Automated account generation workflow with validations and platform-specific rules
+- **Generators**: Username and password generators with configurable requirements
+- **Platform Selector**: Dynamic platform selection with field configuration per platform
 
 ## 🛠️ Tech Stack
 
@@ -119,12 +122,14 @@ account_manager/
 ## 🔧 Available Scripts
 
 ### Root Directory Scripts
+- `npm run install:all` - Install root, backend, and frontend dependencies
 - `npm run setup` - Install all dependencies and setup environment files
 - `npm run dev` - Start both backend and frontend in development mode
 - `npm run dev:backend` - Start only the backend server
 - `npm run dev:frontend` - Start only the frontend server
 - `npm run build` - Build the frontend for production
 - `npm run start` - Start the backend production server
+- `npm run start:backend` - Start the backend production server only
 
 ### Docker Scripts
 - `npm run docker:dev` - Start development environment with Docker
@@ -161,6 +166,7 @@ account_manager/
 - `POST /api/platforms` - Add new platform (admin only)
 - `PUT /api/platforms/:id` - Update platform (admin only)
 - `DELETE /api/platforms/:id` - Delete platform (admin only)
+- `POST /api/platforms/initialize` - Initialize default platforms (admin only)
 
 ### Activity Logs
 - `GET /api/activity-logs/user` - Get user activities
@@ -171,6 +177,7 @@ account_manager/
 
 ### Health Check
 - `GET /api/health` - API health check
+- CLI script: [backend/healthcheck.js](backend/healthcheck.js) to verify service readiness
 
 ## 🔐 Authentication
 
@@ -200,6 +207,11 @@ The application includes a comprehensive activity logging system that tracks:
 - **Security Monitoring**: Suspicious activity detection
 - **Data Retention**: Configurable retention policies
 
+Related documentation:
+- Design: [ActivityLog_Design.md](ActivityLog_Design.md)
+- Implementation Guide: [ActivityLog_Implementation_Guide.md](ActivityLog_Implementation_Guide.md)
+- Model Diagram: [ActivityLog_Model_Diagram.md](ActivityLog_Model_Diagram.md)
+
 ## 🛡️ Security Features
 
 - **Password Hashing**: All passwords are hashed using bcryptjs
@@ -222,9 +234,12 @@ The application includes a comprehensive activity logging system that tracks:
 ### Components
 - **Authentication**: Login and registration forms
 - **Account Management**: Create, edit, and delete accounts
+- **Auto Account Creation**: Guided workflow to generate multiple accounts automatically
+- **Generators**: [UsernameGenerator.js](frontend/src/components/accounts/UsernameGenerator.js) and [PasswordGenerator.js](frontend/src/components/accounts/PasswordGenerator.js)
+- **Platform Selector**: [PlatformSelector.js](frontend/src/components/accounts/PlatformSelector.js) with dynamic fields per platform
 - **Activity Monitoring**: Real-time activity feeds
 - **Data Visualization**: Charts and graphs for analytics
-- **Responsive Layout**: Mobile-optimized design
+- **Responsive Layout**: Mobile-optimized design (see [MobileOptimizedLayout.js](frontend/src/components/mobile/MobileOptimizedLayout.js))
 
 ## 🔧 Configuration
 
@@ -243,6 +258,8 @@ JWT_EXPIRE=7d
 ```bash
 REACT_APP_API_URL=http://localhost:5000/api
 ```
+
+Note: development API requests are proxied via [frontend/package.json](frontend/package.json) (`"proxy": "http://localhost:5000"`).
 
 ## 📝 Development Notes
 

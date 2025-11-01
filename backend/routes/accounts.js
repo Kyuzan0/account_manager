@@ -26,6 +26,10 @@ const {
   predictGender,
   bulkDeleteAccounts
 } = require('../controllers/accountController');
+const {
+  enforceManualCreatePolicy,
+  enforceAutoCreatePolicy,
+} = require('../middleware/platformPolicy');
 
 // All routes are protected
 router.use(auth);
@@ -33,18 +37,22 @@ router.use(auth);
 // GET /api/accounts - Get all accounts for logged-in user
 router.get('/', validateAccountQuery, getAccounts);
 
-// POST /api/accounts - Create new account
-router.post('/', validateAccount, createAccount);
+// POST /api/accounts - Create new account (legacy)
+// Apply manual create policy for safety even on legacy endpoint
+router.post('/', enforceManualCreatePolicy, validateAccount, createAccount);
 
 // GET /api/accounts/stats - Get account statistics for dashboard
 router.get('/stats', getAccountStats);
+
+// POST /api/accounts/manual-create - Manual account creation (preferred endpoint)
+router.post('/manual-create', enforceManualCreatePolicy, validateAccount, createAccount);
 
 // POST /api/accounts/auto-create - Auto-create account with all data generated
 router.post('/auto-create', (req, res, next) => {
   console.log('DEBUG: Request body received:', JSON.stringify(req.body, null, 2));
   console.log('DEBUG: Content-Type:', req.get('Content-Type'));
   next();
-}, validateAutoAccount, autoCreateAccount);
+}, enforceAutoCreatePolicy, validateAutoAccount, autoCreateAccount);
 
 // GET /api/accounts/generate-username - Generate username only
 router.get('/generate-username', generateUsername);

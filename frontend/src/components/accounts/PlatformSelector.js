@@ -8,16 +8,12 @@ const PlatformSelector = ({ onPlatformChange, selectedPlatform }) => {
   useEffect(() => {
     const fetchPlatforms = async () => {
       try {
-        // Mock data for now - will be replaced with API call
-        const mockPlatforms = [
-          { _id: '1', name: 'roblox', displayName: 'Roblox' },
-          { _id: '2', name: 'google', displayName: 'Google' },
-          { _id: '3', name: 'facebook', displayName: 'Facebook' },
-          { _id: '4', name: 'instagram', displayName: 'Instagram' },
-          { _id: '5', name: 'twitter', displayName: 'Twitter' }
+        // Only Roblox is currently enabled by policy
+        const enabledPlatforms = [
+          { _id: '1', name: 'roblox', displayName: 'Roblox' }
         ];
         
-        setPlatforms(mockPlatforms);
+        setPlatforms(enabledPlatforms);
       } catch (err) {
         setError('Failed to load platforms');
       } finally {
@@ -59,7 +55,6 @@ const PlatformSelector = ({ onPlatformChange, selectedPlatform }) => {
           value={selectedPlatform}
           onChange={(e) => onPlatformChange(e.target.value)}
         >
-          <option value="">Choose a platform...</option>
           {platforms.map((platform) => (
             <option key={platform._id} value={platform.name}>
               {platform.displayName}
@@ -72,6 +67,9 @@ const PlatformSelector = ({ onPlatformChange, selectedPlatform }) => {
           </svg>
         </div>
       </div>
+      <p className="mt-2 text-xs text-gray-400">
+        Only Roblox is supported at this time. Other platforms are disabled by policy.
+      </p>
     </div>
   );
 };

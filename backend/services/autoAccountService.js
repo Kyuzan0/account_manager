@@ -477,40 +477,58 @@ class AutoAccountService {
     }
   }
 
-  // Create multiple auto accounts
+  // Create multiple auto accounts with simple in-memory queue and controlled retry
   async createMultipleAutoAccounts(userId, platform, count, options = {}) {
     console.log('DEBUG: createMultipleAutoAccounts called with count:', count);
-    
+
     const results = [];
     const errors = [];
-    
-    for (let i = 0; i < count; i++) {
-      try {
-        const result = await this.createAutoAccount(userId, platform, {
-          ...options,
-          batchIndex: i
-        });
-        
-        if (result.success) {
-          results.push(result.account);
-        } else {
-          errors.push({
-            index: i,
-            error: result.error
+
+    const maxAttempts = Number(process.env.AUTO_CREATE_MAX_ATTEMPTS || options.maxAttempts || 3);
+    const baseDelayMs = Number(process.env.AUTO_CREATE_BASE_DELAY_MS || options.baseDelayMs || 200);
+
+    // Simple sequential queue (concurrency = 1) to avoid race conditions
+    const attemptCreate = async (index) => {
+      let attempt = 0;
+      while (attempt < maxAttempts) {
+        try {
+          const result = await this.createAutoAccount(userId, platform, {
+            ...options,
+            batchIndex: index,
           });
+
+          if (result.success) {
+            results.push(result.account);
+            return;
+          } else {
+            // Failures returned from service - decide retry based on error
+            const eMsg = (result.error || '').toLowerCase();
+            const isDuplicate = eMsg.includes('already exists');
+            if (isDuplicate) {
+              // No retry for deterministic duplicate
+              throw new Error(result.error || 'Duplicate username');
+            }
+            // Retry on transient errors
+            throw new Error(result.error || 'Transient error');
+          }
+        } catch (err) {
+          attempt += 1;
+          if (attempt >= maxAttempts) {
+            errors.push({ index, error: err.message });
+            return;
+          }
+          const delay = baseDelayMs * attempt;
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
-        
-        // Add small delay to avoid database conflicts
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (error) {
-        errors.push({
-          index: i,
-          error: error.message
-        });
       }
+    };
+
+    for (let i = 0; i < count; i++) {
+      await attemptCreate(i);
+      // small jitter to avoid hot spots
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    
+
     return {
       success: results.length > 0,
       accounts: results,
@@ -518,8 +536,9 @@ class AutoAccountService {
       summary: {
         total: count,
         successful: results.length,
-        failed: errors.length
-      }
+        failed: errors.length,
+        attemptsPerItem: maxAttempts,
+      },
     };
   }
 }

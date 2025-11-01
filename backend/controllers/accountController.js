@@ -222,6 +222,11 @@ exports.createAccount = async (req, res) => {
           duration: Date.now() - startTime
         }
       });
+
+      // Add structured event marker
+      if (activityLog && activityLog.details && activityLog.details.metadata) {
+        activityLog.details.metadata.event = 'account.create.success';
+      }
       
       // Save log asynchronously without waiting
       activityLog.save().catch(err => console.error('Failed to save activity log:', err));
