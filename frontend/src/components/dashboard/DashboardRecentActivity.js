@@ -240,51 +240,75 @@ const DashboardRecentActivity = ({ limit = 3 }) => {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 sm:space-y-3">
       {activities.map((activity, index) => (
         <motion.div
           key={activity.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, delay: index * 0.1 }}
-          className="bg-gray-700/50 rounded-lg p-3 border border-gray-600/50 hover:border-gray-500/70 transition-all duration-200"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: index * 0.1, ease: "easeOut" }}
+          className="group relative bg-gradient-to-r from-gray-700/30 to-gray-800/30
+                     backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-600/40
+                     hover:border-gray-500/60 hover:from-gray-700/40 hover:to-gray-800/40
+                     transition-all duration-300 hover:shadow-lg overflow-hidden"
+          whileHover={{
+            scale: 1.02,
+            boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.3)"
+          }}
         >
-          <div className="flex items-center space-x-3">
-            {/* Platform Icon */}
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-600/50">
-              {getActivityIcon(activity.type, activity.platform)}
-            </div>
+          {/* Background decoration */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          
+          <div className="relative z-10 flex items-center space-x-3 sm:space-x-4">
+            {/* Enhanced Platform Icon */}
+            <motion.div
+              className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br
+                         from-gray-600/50 to-gray-700/50 backdrop-blur-sm border border-gray-600/30
+                         group-hover:scale-110 transition-transform duration-300"
+              whileHover={{ rotate: 5 }}
+            >
+              <div className="text-sm sm:text-lg">
+                {getActivityIcon(activity.type, activity.platform)}
+              </div>
+            </motion.div>
             
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-white truncate">
+              <h4 className="text-xs sm:text-sm font-semibold text-white truncate mb-1 sm:mb-2 group-hover:text-blue-300 transition-colors duration-200">
                 {activity.title}
               </h4>
-              <div className="flex items-center space-x-2 mt-1">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs">
                 {activity.username && (
-                  <span className="text-xs text-gray-400 truncate">
+                  <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gray-600/30 rounded-md sm:rounded-lg text-gray-300 font-medium backdrop-blur-sm border border-gray-600/20">
                     {activity.username}
                   </span>
                 )}
                 {activity.platform && (
-                  <>
-                    <span className="text-xs text-gray-500">•</span>
-                    <span className="text-xs text-gray-400 capitalize">
-                      {activity.platform}
-                    </span>
-                  </>
+                  <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20
+                                   rounded-md sm:rounded-lg text-blue-300 capitalize font-medium
+                                   backdrop-blur-sm border border-blue-500/20">
+                    {activity.platform}
+                  </span>
                 )}
-                <span className="text-xs text-gray-500">•</span>
-                <span className="text-xs text-gray-400">
+                <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gray-600/20 rounded-md sm:rounded-lg text-gray-400 backdrop-blur-sm">
                   {formatTimestamp(activity.timestamp)}
                 </span>
               </div>
             </div>
             
-            {/* Status Circle */}
-            <div className={`w-6 h-6 rounded-full ${getStatusColor(activity.type, activity.status)} flex items-center justify-center`}>
+            {/* Enhanced Status Circle */}
+            <motion.div
+              className={`w-6 h-6 sm:w-8 sm:h-8 rounded-xl sm:rounded-2xl ${getStatusColor(activity.type, activity.status)}
+                         flex items-center justify-center shadow-lg backdrop-blur-sm
+                         border border-white/10 group-hover:scale-110 transition-transform duration-300`}
+              whileHover={{ rotate: 360 }}
+              transition={{ duration: 0.6 }}
+            >
               {getStatusIcon(activity.type)}
-            </div>
+            </motion.div>
           </div>
+          
+          {/* Hover effect line */}
+          <div className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 w-0 group-hover:w-full transition-all duration-500" />
         </motion.div>
       ))}
     </div>

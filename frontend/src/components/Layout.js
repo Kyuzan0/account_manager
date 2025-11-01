@@ -244,7 +244,6 @@ const Layout = ({ children }) => {
               transition={{
                 duration: 0.5
               }}
-              className="p-6"
               id="main-content"
               role="main"
               tabIndex="-1"
