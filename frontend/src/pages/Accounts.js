@@ -7,9 +7,9 @@ import {
   CalendarIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
-import AccountHistory from '../components/history/AccountHistory';
+import AccountHistory from '../components/accounts/AccountHistory';
 
-const History = () => {
+const Accounts = () => {
   const [statistics, setStatistics] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [filters, setFilters] = useState({
@@ -60,7 +60,7 @@ const History = () => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-2">Account History</h1>
+        <h1 className="text-2xl font-bold text-white mb-2">Accounts</h1>
         <p className="text-gray-400">View and manage your created accounts</p>
       </div>
 
@@ -70,4 +70,4 @@ const History = () => {
   );
 };
 
-export default History;
+export default Accounts;

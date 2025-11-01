@@ -43,8 +43,8 @@ const MobileOptimizedLayout = ({ children, user, onLogout, currentPage }) => {
       color: 'text-purple-500'
     },
     {
-      path: '/history',
-      label: 'History',
+      path: '/accounts',
+      label: 'Accounts',
       icon: ClockIcon,
       color: 'text-green-500'
     },

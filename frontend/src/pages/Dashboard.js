@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { accountService } from '../services/accountService';
 import DashboardWidget from '../components/dashboard/DashboardWidget';
-import AccountForm from '../components/history/AccountForm';
+import AccountForm from '../components/accounts/AccountForm';
 import RecentActivity from '../components/logs/RecentActivity';
 
 const Dashboard = () => {

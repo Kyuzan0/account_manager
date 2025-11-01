@@ -285,7 +285,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = {} }) => 
           </button>
           <button
             className="flex items-center justify-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-            onClick={() => window.location.href = '/history'}
+            onClick={() => window.location.href = '/accounts'}
           >
             <ClockIcon className="w-5 h-5 mr-2" />
             <span>View All History</span>

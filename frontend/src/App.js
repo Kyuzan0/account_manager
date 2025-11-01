@@ -13,7 +13,7 @@ import Layout from './components/Layout';
 // Import pages
 import Dashboard from './pages/Dashboard';
 import Performance from './pages/Performance';
-import History from './pages/History';
+import Accounts from './pages/Accounts';
 import NameData from './pages/NameData';
 import Logs from './pages/Logs';
 
@@ -51,11 +51,11 @@ function App() {
             />
             
             <Route
-              path="/history"
+              path="/accounts"
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <History />
+                    <Accounts />
                   </Layout>
                 </ProtectedRoute>
               }
