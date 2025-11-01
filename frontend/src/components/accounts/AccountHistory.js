@@ -55,7 +55,8 @@ const AccountHistory = ({ limit = null }) => {
         setAccounts(accounts.filter(account => account._id !== accountId));
         toast.success('Account deleted successfully');
       } catch (error) {
-        toast.error('Failed to delete account');
+        console.error('Error deleting account:', error);
+        toast.error(`Failed to delete account: ${error.response?.data?.message || error.message}`);
       }
     }
   };

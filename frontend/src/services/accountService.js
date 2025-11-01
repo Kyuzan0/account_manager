@@ -82,6 +82,11 @@ export const accountService = {
     return response.data;
   },
 
+  // Alias for delete function for consistency
+  deleteAccount: async (id) => {
+    return await accountService.delete(id);
+  },
+
   // Get account history
   getHistory: async (accountId) => {
     const response = await api.get(`/accounts/${accountId}/history`);
