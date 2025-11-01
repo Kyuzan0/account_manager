@@ -1,28 +1,49 @@
 const Account = require('../models/Account');
 const ActivityLog = require('../models/ActivityLog');
 const { validationResult } = require('express-validator');
+const autoAccountService = require('../services/autoAccountService');
 
 // Get all accounts for logged-in user
 exports.getAccounts = async (req, res) => {
   try {
-    const { page = 1, limit = 10, platform } = req.query;
+    const { page = 1, limit = 10, platform, search } = req.query;
     const query = { userId: req.user.id };
     
     if (platform) {
       query.platform = platform;
     }
 
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { 'additionalData.firstName': { $regex: search, $options: 'i' } },
+        { 'additionalData.lastName': { $regex: search, $options: 'i' } },
+        { 'additionalData.recoveryEmail': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Convert limit to number and validate
+    const limitNum = parseInt(limit);
+    const validLimits = [10, 100, 1000];
+    
+    if (!validLimits.includes(limitNum)) {
+      return res.status(400).json({
+        message: 'Invalid limit value. Must be one of: 10, 100, 1000'
+      });
+    }
+
     const accounts = await Account.find(query)
       .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .limit(limitNum)
+      .skip((page - 1) * limitNum);
 
     const total = await Account.countDocuments(query);
 
     res.json({
       accounts,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: parseInt(page),
       total
     });
   } catch (error) {
@@ -599,29 +620,427 @@ exports.getAccountStats = async (req, res) => {
   }
 };
 
+// Auto-create account with all data generated automatically
+exports.autoCreateAccount = async (req, res) => {
+  const startTime = Date.now();
+  let activityLog = null;
+  
+  try {
+    console.log('DEBUG: autoCreateAccount called with body:', JSON.stringify(req.body, null, 2));
+    console.log('DEBUG: autoCreateAccount user:', req.user);
+    
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('DEBUG: Validation errors:', errors.array());
+      
+      // Log validation failure
+      try {
+        activityLog = new ActivityLog({
+          activityType: 'ACCOUNT_AUTO_CREATE',
+          status: 'FAILURE',
+          userId: req.user.id,
+          targetEntity: {
+            entityType: 'Account',
+            entityName: `${req.body.platform || 'unknown'}:auto`,
+            platform: req.body.platform
+          },
+          requestContext: {
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('User-Agent'),
+            endpoint: req.originalUrl,
+            method: req.method,
+            timestamp: new Date()
+          },
+          details: {
+            beforeState: null,
+            afterState: null,
+            metadata: {
+              validationErrors: errors.array()
+            }
+          },
+          error: {
+            message: 'Validation failed',
+            details: errors.array()
+          },
+          performance: {
+            duration: Date.now() - startTime
+          }
+        });
+        
+        // Save log asynchronously without waiting
+        activityLog.save().catch(err => console.error('Failed to save activity log:', err));
+      } catch (logError) {
+        console.error('Error creating activity log:', logError);
+      }
+      
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { platform, count = 1, options = {} } = req.body;
+
+    // Validate platform
+    const validPlatforms = ['roblox', 'google', 'facebook', 'instagram', 'twitter'];
+    if (!validPlatforms.includes(platform)) {
+      return res.status(400).json({
+        message: 'Invalid platform. Must be one of: ' + validPlatforms.join(', ')
+      });
+    }
+
+    // Validate count
+    if (count < 1 || count > 10) {
+      return res.status(400).json({
+        message: 'Count must be between 1 and 10'
+      });
+    }
+
+    // Prepare options for auto account service
+    const autoOptions = {
+      ...options,
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent')
+    };
+
+    let result;
+    if (count === 1) {
+      // Create single account
+      result = await autoAccountService.createAutoAccount(req.user.id, platform, autoOptions);
+      
+      if (result.success) {
+        res.status(201).json({
+          success: true,
+          account: result.account,
+          metadata: result.metadata,
+          message: 'Account created successfully'
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error,
+          metadata: result.metadata
+        });
+      }
+    } else {
+      // Create multiple accounts
+      result = await autoAccountService.createMultipleAutoAccounts(req.user.id, platform, count, autoOptions);
+      
+      if (result.success) {
+        res.status(201).json({
+          success: true,
+          accounts: result.accounts,
+          summary: result.summary,
+          errors: result.errors,
+          message: `Successfully created ${result.summary.successful} out of ${result.summary.total} accounts`
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          errors: result.errors,
+          summary: result.summary,
+          message: 'Failed to create any accounts'
+        });
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in autoCreateAccount:', error);
+    
+    // Log unexpected error
+    try {
+      activityLog = new ActivityLog({
+        activityType: 'ACCOUNT_AUTO_CREATE',
+        status: 'FAILURE',
+        userId: req.user.id,
+        targetEntity: {
+          entityType: 'Account',
+          entityName: `${req.body.platform || 'unknown'}:auto`,
+          platform: req.body.platform
+        },
+        requestContext: {
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('User-Agent'),
+          endpoint: req.originalUrl,
+          method: req.method,
+          timestamp: new Date()
+        },
+        details: {
+          beforeState: null,
+          afterState: null
+        },
+        error: {
+          message: error.message,
+          stack: error.stack
+        },
+        performance: {
+          duration: Date.now() - startTime
+        }
+      });
+      
+      // Save log asynchronously without waiting
+      activityLog.save().catch(err => console.error('Failed to save activity log:', err));
+    } catch (logError) {
+      console.error('Error creating activity log:', logError);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Generate username only
+exports.generateUsername = async (req, res) => {
+  try {
+    const { platform, options = {} } = req.query;
+    
+    if (!platform) {
+      return res.status(400).json({ message: 'Platform is required' });
+    }
+
+    const result = await autoAccountService.generateUsername(platform, options);
+    
+    res.json({
+      success: true,
+      username: result.username,
+      source: result.source,
+      originalName: result.originalName
+    });
+  } catch (error) {
+    console.error('Error in generateUsername:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Generate password only
+exports.generatePassword = async (req, res) => {
+  try {
+    const { platform, requirements = {} } = req.query;
+    
+    if (!platform) {
+      return res.status(400).json({ message: 'Platform is required' });
+    }
+
+    const password = autoAccountService.generatePassword(platform, requirements);
+    
+    res.json({
+      success: true,
+      password,
+      platform,
+      requirements
+    });
+  } catch (error) {
+    console.error('Error in generatePassword:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Predict gender from name
+exports.predictGender = async (req, res) => {
+  try {
+    const { name } = req.query;
+    
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+
+    const prediction = autoAccountService.predictGender(name);
+    
+    res.json({
+      success: true,
+      name,
+      gender: prediction.gender,
+      confidence: prediction.confidence
+    });
+  } catch (error) {
+    console.error('Error in predictGender:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Bulk delete accounts
+exports.bulkDeleteAccounts = async (req, res) => {
+  const startTime = Date.now();
+  let activityLog = null;
+  
+  try {
+    console.log('DEBUG: bulkDeleteAccounts called with body:', JSON.stringify(req.body, null, 2));
+    console.log('DEBUG: bulkDeleteAccounts user:', req.user);
+    
+    const { ids } = req.body;
+    
+    console.log('DEBUG: bulkDeleteAccounts extracted ids:', ids);
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Account IDs are required' });
+    }
+
+    // Find accounts to get their details before deletion
+    const accountsToDelete = await Account.find({
+      _id: { $in: ids },
+      userId: req.user.id
+    });
+
+    if (accountsToDelete.length === 0) {
+      return res.status(404).json({ message: 'No accounts found to delete' });
+    }
+
+    // Store account details for logging
+    const accountsDetails = accountsToDelete.map(account => ({
+      _id: account._id,
+      platform: account.platform,
+      username: account.username,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+      hasAdditionalData: !!(account.additionalData && Object.keys(account.additionalData).length > 0)
+    }));
+
+    // Delete accounts
+    const deleteResult = await Account.deleteMany({
+      _id: { $in: ids },
+      userId: req.user.id
+    });
+
+    // Log successful bulk deletion
+    try {
+      activityLog = new ActivityLog({
+        activityType: 'ACCOUNT_BULK_DELETE',
+        status: 'SUCCESS',
+        userId: req.user.id,
+        targetEntity: {
+          entityType: 'Account',
+          entityIds: ids,
+          entityNames: accountsDetails.map(acc => `${acc.platform}:${acc.username}`),
+          platforms: [...new Set(accountsDetails.map(acc => acc.platform))]
+        },
+        requestContext: {
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('User-Agent'),
+          endpoint: '/api/accounts/bulk',
+          method: 'DELETE',
+          timestamp: new Date()
+        },
+        details: {
+          beforeState: accountsDetails,
+          afterState: null,
+          metadata: {
+            deletedCount: deleteResult.deletedCount,
+            requestedCount: ids.length
+          }
+        },
+        performance: {
+          duration: Date.now() - startTime
+        }
+      });
+      
+      // Save log asynchronously without waiting
+      activityLog.save().catch(err => console.error('Failed to save activity log:', err));
+    } catch (logError) {
+      console.error('Error creating activity log:', logError);
+    }
+
+    res.json({
+      message: 'Accounts deleted successfully',
+      deletedCount: deleteResult.deletedCount,
+      requestedCount: ids.length
+    });
+  } catch (error) {
+    console.error('Error in bulkDeleteAccounts:', error);
+    
+    // Log unexpected error
+    try {
+      activityLog = new ActivityLog({
+        activityType: 'ACCOUNT_BULK_DELETE',
+        status: 'FAILURE',
+        userId: req.user.id,
+        targetEntity: {
+          entityType: 'Account',
+          entityIds: req.body.ids || [],
+          entityNames: [],
+          platforms: []
+        },
+        requestContext: {
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('User-Agent'),
+          endpoint: '/api/accounts/bulk',
+          method: 'DELETE',
+          timestamp: new Date()
+        },
+        details: {
+          beforeState: null,
+          afterState: null
+        },
+        error: {
+          message: error.message,
+          stack: error.stack
+        },
+        performance: {
+          duration: Date.now() - startTime
+        }
+      });
+      
+      // Save log asynchronously without waiting
+      activityLog.save().catch(err => console.error('Failed to save activity log:', err));
+    } catch (logError) {
+      console.error('Error creating activity log:', logError);
+    }
+    
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+
 // Get accounts by platform
 exports.getAccountsByPlatform = async (req, res) => {
   try {
     const { platform } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, search } = req.query;
 
-    const accounts = await Account.find({
+    // Convert limit to number and validate
+    const limitNum = parseInt(limit);
+    const validLimits = [10, 100, 1000];
+    
+    if (!validLimits.includes(limitNum)) {
+      return res.status(400).json({
+        message: 'Invalid limit value. Must be one of: 10, 100, 1000'
+      });
+    }
+
+    const query = {
       userId: req.user.id,
       platform
-    })
+    };
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { 'additionalData.firstName': { $regex: search, $options: 'i' } },
+        { 'additionalData.lastName': { $regex: search, $options: 'i' } },
+        { 'additionalData.recoveryEmail': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const accounts = await Account.find(query)
       .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .limit(limitNum)
+      .skip((page - 1) * limitNum);
 
-    const total = await Account.countDocuments({
-      userId: req.user.id,
-      platform
-    });
+    const total = await Account.countDocuments(query);
 
     res.json({
       accounts,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: parseInt(page),
       total
     });
   } catch (error) {

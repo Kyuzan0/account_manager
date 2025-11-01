@@ -156,8 +156,77 @@ export const accountService = {
   },
 
   bulkDelete: async (ids) => {
-    const response = await api.delete('/accounts/bulk', { data: { ids } });
-    return response.data;
+    console.log('accountService.bulkDelete: Deleting accounts with IDs:', ids);
+    try {
+      const response = await api.delete('/accounts/bulk', { data: { ids } });
+      console.log('accountService.bulkDelete: Response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('accountService.bulkDelete: Error deleting accounts:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Auto-create account with all data generated
+  autoCreateAccount: async (platform, count = 1, options = {}) => {
+    console.log('accountService.autoCreateAccount: Creating auto account with platform:', platform, 'count:', count, 'options:', options);
+    try {
+      const response = await api.post('/accounts/auto-create', {
+        platform,
+        count,
+        options
+      });
+      console.log('accountService.autoCreateAccount: Response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('accountService.autoCreateAccount: Error creating auto account:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Generate username only
+  generateUsername: async (platform, options = {}) => {
+    console.log('accountService.generateUsername: Generating username for platform:', platform, 'options:', options);
+    try {
+      const response = await api.get('/accounts/generate-username', {
+        params: { platform, ...options }
+      });
+      console.log('accountService.generateUsername: Response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('accountService.generateUsername: Error generating username:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Generate password only
+  generateAutoPassword: async (platform, requirements = {}) => {
+    console.log('accountService.generateAutoPassword: Generating password for platform:', platform, 'requirements:', requirements);
+    try {
+      const response = await api.get('/accounts/generate-password', {
+        params: { platform, ...requirements }
+      });
+      console.log('accountService.generateAutoPassword: Response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('accountService.generateAutoPassword: Error generating password:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Predict gender from name
+  predictGender: async (name) => {
+    console.log('accountService.predictGender: Predicting gender for name:', name);
+    try {
+      const response = await api.get('/accounts/predict-gender', {
+        params: { name }
+      });
+      console.log('accountService.predictGender: Response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('accountService.predictGender: Error predicting gender:', error.response?.data || error.message);
+      throw error;
+    }
   }
 };
 

@@ -163,8 +163,8 @@ exports.validateActivityLogQuery = [
     .withMessage('Page must be a positive integer'),
   query('limit')
     .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limit must be between 1 and 100'),
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Limit must be between 1 and 1000'),
   
   // Filters
   query('activityType')
@@ -174,6 +174,7 @@ exports.validateActivityLogQuery = [
       'ACCOUNT_DELETE',
       'ACCOUNT_UPDATE',
       'ACCOUNT_VIEW',
+      'ACCOUNT_BULK_DELETE',
       'USER_LOGIN',
       'USER_LOGOUT',
       'USER_REGISTER',
@@ -230,4 +231,99 @@ exports.validateAccountId = [
   param('accountId')
     .isMongoId()
     .withMessage('Invalid account ID format')
+];
+
+// Auto Account validation
+exports.validateAutoAccount = [
+  body('platform')
+    .isIn(['roblox', 'google', 'facebook', 'instagram', 'twitter'])
+    .withMessage('Invalid platform'),
+  body('count')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Count must be between 1 and 10'),
+  body('options')
+    .optional()
+    .isObject()
+    .withMessage('Options must be an object'),
+  body('options.ageRange')
+    .optional()
+    .isObject()
+    .withMessage('Age range must be an object'),
+  body('options.ageRange.min')
+    .optional()
+    .isInt({ min: 13, max: 100 })
+    .withMessage('Minimum age must be between 13 and 100'),
+  body('options.ageRange.max')
+    .optional()
+    .isInt({ min: 13, max: 100 })
+    .withMessage('Maximum age must be between 13 and 100'),
+  body('options.genderPreference')
+    .optional()
+    .isIn(['male', 'female', 'any'])
+    .withMessage('Gender preference must be male, female, or any'),
+  body('options.usernamePrefix')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Username prefix must be between 1 and 20 characters')
+    .matches(/^[a-zA-Z0-9]+$/)
+    .withMessage('Username prefix can only contain letters and numbers')
+];
+
+// Username generation validation
+exports.validateUsernameGeneration = [
+  query('platform')
+    .isIn(['roblox', 'google', 'facebook', 'instagram', 'twitter'])
+    .withMessage('Invalid platform')
+];
+
+// Password generation validation
+exports.validatePasswordGeneration = [
+  query('platform')
+    .isIn(['roblox', 'google', 'facebook', 'instagram', 'twitter'])
+    .withMessage('Invalid platform')
+];
+
+// Gender prediction validation
+exports.validateGenderPrediction = [
+  query('name')
+    .trim()
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Name must be between 1 and 100 characters')
+];
+
+// Account query validation
+exports.validateAccountQuery = [
+  // Pagination
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Limit must be between 1 and 1000'),
+  
+  // Filters
+  query('platform')
+    .optional()
+    .isIn(['roblox', 'google', 'facebook', 'instagram', 'twitter'])
+    .withMessage('Invalid platform'),
+  query('search')
+    .optional()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search term must be between 1 and 100 characters')
+];
+
+// Bulk delete validation
+exports.validateBulkDelete = [
+  body('ids')
+    .isArray({ min: 1 })
+    .withMessage('IDs must be an array with at least one element'),
+  body('ids.*')
+    .isMongoId()
+    .withMessage('All IDs must be valid MongoDB Object IDs')
 ];

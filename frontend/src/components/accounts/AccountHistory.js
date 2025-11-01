@@ -8,12 +8,17 @@ const AccountHistory = ({ limit = null }) => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  const [total, setTotal] = useState(0);
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [pageSize, setPageSize] = useState(limit || 10);
+  const [selectedAccounts, setSelectedAccounts] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -21,14 +26,14 @@ const AccountHistory = ({ limit = null }) => {
         setLoading(true);
         console.log('AccountHistory: Fetching accounts with params:', {
           page: currentPage,
-          limit: limit || 10,
+          limit: pageSize,
           ...(selectedPlatform && { platform: selectedPlatform }),
           ...(searchTerm && { search: searchTerm })
         });
         
         const response = await accountService.getAll({
           page: currentPage,
-          limit: limit || 10,
+          limit: pageSize,
           ...(selectedPlatform && { platform: selectedPlatform }),
           ...(searchTerm && { search: searchTerm })
         });
@@ -36,6 +41,7 @@ const AccountHistory = ({ limit = null }) => {
         console.log('AccountHistory: Received response:', response);
         setAccounts(response.accounts || []);
         setTotalPages(response.totalPages || 0);
+        setTotal(response.total || 0);
       } catch (error) {
         console.error('AccountHistory: Error fetching accounts:', error);
         console.error('AccountHistory: Error details:', error.response?.data || error.message);
@@ -46,13 +52,22 @@ const AccountHistory = ({ limit = null }) => {
     };
 
     fetchAccounts();
-  }, [currentPage, selectedPlatform, searchTerm, limit]);
+  }, [currentPage, selectedPlatform, searchTerm, pageSize]);
 
   const handleDelete = async (accountId) => {
     if (window.confirm('Are you sure you want to delete this account?')) {
       try {
         await accountService.deleteAccount(accountId);
-        setAccounts(accounts.filter(account => account._id !== accountId));
+        // Refresh accounts after deletion
+        const response = await accountService.getAll({
+          page: currentPage,
+          limit: pageSize,
+          ...(selectedPlatform && { platform: selectedPlatform }),
+          ...(searchTerm && { search: searchTerm })
+        });
+        setAccounts(response.accounts || []);
+        setTotalPages(response.totalPages || 0);
+        setTotal(response.total || 0);
         toast.success('Account deleted successfully');
       } catch (error) {
         console.error('Error deleting account:', error);
@@ -60,6 +75,162 @@ const AccountHistory = ({ limit = null }) => {
       }
     }
   };
+
+  const handleSelectAccount = (accountId) => {
+    setSelectedAccounts(prev => {
+      if (prev.includes(accountId)) {
+        return prev.filter(id => id !== accountId);
+      } else {
+        return [...prev, accountId];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedAccounts([]);
+    } else {
+      setSelectedAccounts(accounts.map(account => account._id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedAccounts.length === 0) {
+      toast.error('Please select at least one account to delete');
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete ${selectedAccounts.length} account(s)?`)) {
+      setBulkDeleting(true);
+      try {
+        await accountService.bulkDelete(selectedAccounts);
+        
+        // Refresh accounts after deletion
+        const response = await accountService.getAll({
+          page: currentPage,
+          limit: pageSize,
+          ...(selectedPlatform && { platform: selectedPlatform }),
+          ...(searchTerm && { search: searchTerm })
+        });
+        setAccounts(response.accounts || []);
+        setTotalPages(response.totalPages || 0);
+        setTotal(response.total || 0);
+        
+        setSelectedAccounts([]);
+        setSelectAll(false);
+        toast.success(`${selectedAccounts.length} account(s) deleted successfully`);
+      } catch (error) {
+        console.error('Error bulk deleting accounts:', error);
+        toast.error(`Failed to delete accounts: ${error.response?.data?.message || error.message}`);
+      } finally {
+        setBulkDeleting(false);
+      }
+    }
+  };
+
+  const isAccountSelected = (accountId) => {
+    return selectedAccounts.includes(accountId);
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  const renderPagination = (position = 'bottom') => (
+    <div className={`flex items-center justify-between ${position === 'top' ? 'mb-4' : 'mt-6'}`}>
+      <div className="flex items-center space-x-4">
+        <div className="text-sm text-gray-300">
+          Showing {accounts.length} of {total} accounts
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-300">Show:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            className="px-3 py-1 border border-gray-600 rounded-md bg-gray-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value={10}>10</option>
+            <option value={100}>100</option>
+            <option value={1000}>1000</option>
+          </select>
+          <span className="text-sm text-gray-300">per page</span>
+        </div>
+      </div>
+      
+      {totalPages > 1 && (
+        <div className="flex items-center space-x-2">
+          <div className="text-sm text-gray-300">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+              title="First page"
+            >
+              &laquo;
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+            >
+              Previous
+            </button>
+            
+            {/* Page numbers */}
+            {(() => {
+              const pages = [];
+              const maxVisiblePages = 5;
+              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+              
+              if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+              }
+              
+              for (let i = startPage; i <= endPage; i++) {
+                pages.push(
+                  <button
+                    key={i}
+                    onClick={() => setCurrentPage(i)}
+                    className={`px-3 py-1 text-sm border rounded-md ${
+                      i === currentPage
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    {i}
+                  </button>
+                );
+              }
+              
+              return pages;
+            })()}
+            
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+              title="Last page"
+            >
+              &raquo;
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const handleCopy = async (text, type) => {
     try {
@@ -183,6 +354,37 @@ const AccountHistory = ({ limit = null }) => {
             </select>
           </div>
         </div>
+        
+        {/* Bulk Delete Button */}
+        {selectedAccounts.length > 0 && (
+          <div className="mb-4 p-3 bg-gray-700 rounded-lg flex items-center justify-between">
+            <span className="text-white text-sm">
+              {selectedAccounts.length} account(s) selected
+            </span>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              {bulkDeleting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Delete Selected</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+        
+        {/* Top Pagination */}
+        {accounts.length > 0 && renderPagination('top')}
       </div>
 
       {accounts.length === 0 ? (
@@ -203,6 +405,14 @@ const AccountHistory = ({ limit = null }) => {
             <table className="min-w-full divide-y divide-gray-700">
               <thead className="bg-gray-700 sticky top-0 z-10">
                 <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={handleSelectAll}
+                      className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Platform
                   </th>
@@ -232,6 +442,14 @@ const AccountHistory = ({ limit = null }) => {
               <tbody className="bg-gray-800 divide-y divide-gray-700">
                 {accounts.map((account) => (
                   <tr key={account._id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={isAccountSelected(account._id)}
+                        onChange={() => handleSelectAccount(account._id)}
+                        className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPlatformColor(account.platform)}`}>
                         {account.platform.toUpperCase()}
@@ -335,30 +553,8 @@ const AccountHistory = ({ limit = null }) => {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-between">
-              <div className="text-sm text-gray-300">
-                Page {currentPage} of {totalPages}
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Bottom Pagination */}
+          {renderPagination('bottom')}
         </>
       )}
       

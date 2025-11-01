@@ -227,7 +227,7 @@ export const nameService = {
       // If no names found, try to create a default one
       if (error.response?.status === 404) {
         console.log('DEBUG: No names found, creating default username');
-        const defaultUsername = `user_${Date.now()}`;
+        const defaultUsername = `user${Date.now()}`;
         console.log('DEBUG: Created default username:', defaultUsername);
         return { name: defaultUsername };
       }

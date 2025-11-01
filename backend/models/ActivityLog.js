@@ -19,6 +19,7 @@ const activityLogSchema = new mongoose.Schema({
       'ACCOUNT_DELETE',
       'ACCOUNT_UPDATE',
       'ACCOUNT_VIEW',
+      'ACCOUNT_BULK_DELETE',
       
       // User operations (for future expansion)
       'USER_LOGIN',
@@ -59,8 +60,14 @@ const activityLogSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       required: false // May not always be available (e.g., failed creations)
     },
+    entityIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      required: false // For bulk operations
+    }],
     entityName: String, // Human-readable name for quick reference
-    platform: String // Relevant for account operations
+    entityNames: [String], // For bulk operations
+    platform: String, // Relevant for account operations
+    platforms: [String] // For bulk operations
   },
   
   // Request context

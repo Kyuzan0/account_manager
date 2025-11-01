@@ -1,60 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { accountService } from '../services/accountService';
+import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import {
-  FunnelIcon,
   ChartBarIcon,
-  CalendarIcon,
-  XMarkIcon
+  PlusIcon
 } from '@heroicons/react/24/outline';
 import AccountHistory from '../components/accounts/AccountHistory';
+import AutoAccountCreator from '../components/accounts/AutoAccountCreator';
 
 const Accounts = () => {
-  const [statistics, setStatistics] = useState(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [filters, setFilters] = useState({
-    activityType: '',
-    status: '',
-    startDate: '',
-    endDate: '',
-    timeRange: '30d'
-  });
-  const [showFilters, setShowFilters] = useState(false);
-
-  
-  const handleFilterChange = (newFilters) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      activityType: '',
-      status: '',
-      startDate: '',
-      endDate: '',
-      timeRange: '30d'
-    });
-  };
-
-  const getActivityTypeLabel = (type) => {
-    const labels = {
-      'ACCOUNT_CREATED': 'Account Created',
-      'ACCOUNT_DELETED': 'Account Deleted',
-      'ACCOUNT_UPDATED': 'Account Updated',
-      'LOGIN_SUCCESS': 'Login Success',
-      'LOGIN_FAILED': 'Login Failed',
-      'PASSWORD_CHANGED': 'Password Changed'
-    };
-    return labels[type] || type;
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      'SUCCESS': 'Success',
-      'FAILURE': 'Failure',
-      'PENDING': 'Pending'
-    };
-    return labels[status] || status;
+  const [activeTab, setActiveTab] = useState('accounts'); // 'accounts' or 'auto-create'
+  const handleAccountCreated = (accounts) => {
+    console.log('DEBUG: Auto account created:', accounts);
+    // You can add additional logic here, like refreshing the account list
+    toast.success(`${accounts.length} new account(s) created!`);
   };
 
   return (
@@ -64,8 +22,43 @@ const Accounts = () => {
         <p className="text-gray-400">View and manage your created accounts</p>
       </div>
 
-      {/* Account List */}
-      <AccountHistory />
+      {/* Tab Navigation */}
+      <div className="mb-6 border-b border-gray-700">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('accounts')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'accounts'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center">
+              <ChartBarIcon className="h-4 w-4 mr-2" />
+              My Accounts
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('auto-create')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'auto-create'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center">
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Auto Create
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'accounts' && <AccountHistory />}
+      {activeTab === 'auto-create' && (
+        <AutoAccountCreator onAccountCreated={handleAccountCreated} />
+      )}
     </div>
   );
 };

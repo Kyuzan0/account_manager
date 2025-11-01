@@ -4,6 +4,7 @@ import { accountService } from '../services/accountService';
 import DashboardWidget from '../components/dashboard/DashboardWidget';
 import AccountForm from '../components/accounts/AccountForm';
 import DashboardRecentActivity from '../components/dashboard/DashboardRecentActivity';
+import AutoAccountCreator from '../components/accounts/AutoAccountCreator';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -13,6 +14,7 @@ const Dashboard = () => {
     recentActivity: 0,
     securityScore: 0
   });
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
 
   useEffect(() => {
     // Fetch dashboard stats
@@ -90,6 +92,54 @@ const Dashboard = () => {
           color="yellow"
         />
       </div>
+
+      {/* Quick Create Button */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowQuickCreate(!showQuickCreate)}
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105 flex items-center justify-center"
+        >
+          <span className="mr-2">⚡</span>
+          Quick Auto Create Account
+        </button>
+      </div>
+
+      {/* Quick Create Modal */}
+      {showQuickCreate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-white">Quick Auto Create Account</h2>
+              <button
+                onClick={() => setShowQuickCreate(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <AutoAccountCreator onAccountCreated={(accounts) => {
+              setShowQuickCreate(false);
+              // Refresh stats after creating accounts
+              const fetchStats = async () => {
+                try {
+                  const statsData = await accountService.getStats();
+                  setStats({
+                    totalAccounts: statsData.totalAccounts || 0,
+                    activePlatforms: statsData.platformsCount || 0,
+                    recentActivity: statsData.recentCount || 0,
+                    securityScore: 85
+                  });
+                } catch (error) {
+                  console.error('Dashboard: Error refreshing stats:', error);
+                }
+              };
+              fetchStats();
+            }} />
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

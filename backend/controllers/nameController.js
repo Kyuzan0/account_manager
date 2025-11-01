@@ -262,13 +262,13 @@ exports.getRandomName = async (req, res) => {
       
       // Create default names if database is empty
       const defaultNames = [
-        { name: 'john_doe', platform: 'general', source: 'system' },
-        { name: 'jane_smith', platform: 'general', source: 'system' },
+        { name: 'johndoe', platform: 'general', source: 'system' },
+        { name: 'janesmith', platform: 'general', source: 'system' },
         { name: 'user123', platform: 'general', source: 'system' },
-        { name: 'player_one', platform: 'roblox', source: 'system' },
-        { name: 'gamer_pro', platform: 'roblox', source: 'system' },
-        { name: 'social_user', platform: 'facebook', source: 'system' },
-        { name: 'email_user', platform: 'google', source: 'system' }
+        { name: 'playerone', platform: 'roblox', source: 'system' },
+        { name: 'gamerpro', platform: 'roblox', source: 'system' },
+        { name: 'socialuser', platform: 'facebook', source: 'system' },
+        { name: 'emailuser', platform: 'google', source: 'system' }
       ];
       
       try {
@@ -295,7 +295,7 @@ exports.getRandomName = async (req, res) => {
     if (nameData.length === 0) {
       console.log('DEBUG: Still no names available, generating fallback');
       // Final fallback - generate a random username
-      const fallbackName = `user_${Math.random().toString(36).substring(2, 8)}`;
+      const fallbackName = `user${Math.random().toString(36).substring(2, 8)}`;
       console.log('DEBUG: Generated fallback name:', fallbackName);
       return res.json({
         name: fallbackName,

@@ -47,7 +47,7 @@ const UsernameGenerator = ({ platform, onUsernameGenerated }) => {
       console.log('DEBUG: Error response:', error.response);
       
       // Generate a fallback username locally if all else fails
-      const fallbackUsername = `user_${Date.now().toString(36).substring(2, 8)}`;
+      const fallbackUsername = `user${Date.now().toString(36).substring(2, 8)}`;
       console.log('DEBUG: Using local fallback username:', fallbackUsername);
       
       onUsernameGenerated(fallbackUsername);
