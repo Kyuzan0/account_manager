@@ -1,0 +1,31 @@
+{
+  "name": "account-generator",
+  "version": "1.0.0",
+  "description": "Account Generator Multi-Platform Application",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "start": "npm run start:backend",
+    "start:backend": "cd backend && npm start",
+    "docker:dev": "docker-compose up -d mongodb && npm run dev",
+    "docker:prod": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "docker:clean": "docker-compose down -v --remove-orphans",
+    "setup": "npm run install:all && cp .env.example .env && cp backend/.env.example backend/.env"
+  },
+  "keywords": [
+    "account-generator",
+    "react",
+    "node",
+    "express",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
