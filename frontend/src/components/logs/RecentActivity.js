@@ -16,7 +16,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import AccountDetailsModal from '../accounts/AccountDetailsModal';
 
-const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) => {
+const RecentActivity = ({ limit = 5, showPagination = false, filters = null, minimalist = false }) => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -70,9 +70,23 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
         // Transform activity logs into display format
         const activityList = response.logs.map((log) => {
           const isAccountActivity = log.targetEntity && log.targetEntity.entityType === 'Account';
-          const platform = isAccountActivity ? log.targetEntity.platform : '';
-          const username = isAccountActivity ? log.targetEntity.username : '';
+          const platform = isAccountActivity ? (log.targetEntity.platform || '') : '';
+          // Prefer username from targetEntity; fallback to entityName or details before/after state
+          const rawUsername = isAccountActivity
+            ? (
+                log.targetEntity?.username ??
+                log.targetEntity?.entityName ??
+                log.details?.afterState?.username ??
+                log.details?.beforeState?.username ??
+                ''
+              )
+            : '';
+          const accountUsername = typeof rawUsername === 'string' && rawUsername.includes(':')
+            ? rawUsername.split(':')[1]
+            : rawUsername;
           const accountId = isAccountActivity ? log.targetEntity.entityId : '';
+          // Handle both populated user object and direct user reference (not shown in UI but kept for potential use)
+          const userUsername = log.userId?.username || log.userId?.name || user?.name || 'Unknown User';
           
           return {
             id: log._id,
@@ -81,7 +95,8 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
             description: getActivityDescription(log),
             timestamp: log.requestContext.timestamp,
             platform: platform,
-            username: username,
+            username: accountUsername,
+            userUsername: userUsername,
             accountId: accountId,
             status: log.status,
             actions: getActivityActions(log, isAccountActivity, accountId)
@@ -89,6 +104,27 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
         });
         
         setActivities(activityList);
+        // Enrich missing usernames using accountId as fallback
+        try {
+          const missing = activityList.filter(a => a.accountId && (!a.username || a.username === ''));
+          const uniqueIds = [...new Set(missing.map(a => a.accountId))];
+          if (uniqueIds.length > 0) {
+            const results = await Promise.all(uniqueIds.map(id => accountService.getById(id).catch(() => null)));
+            const idToUsername = {};
+            results.forEach((acc) => {
+              if (acc && acc._id) {
+                idToUsername[acc._id] = acc.username || acc.name || '';
+              }
+            });
+            if (Object.keys(idToUsername).length > 0) {
+              setActivities(prev =>
+                prev.map(a => (!a.username && a.accountId && idToUsername[a.accountId] ? { ...a, username: idToUsername[a.accountId] } : a))
+              );
+            }
+          }
+        } catch (e) {
+          console.warn('RecentActivity: Username enrichment failed', e);
+        }
         setPagination({
           currentPage: response.currentPage,
           totalPages: response.totalPages,
@@ -163,18 +199,46 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
 
   const getActivityTitle = (activityType, platform) => {
     switch (activityType) {
+      // Account operations (support both backend and frontend enums)
       case 'ACCOUNT_CREATED':
+      case 'ACCOUNT_CREATE':
         return `New ${platform} account created`;
       case 'ACCOUNT_DELETED':
+      case 'ACCOUNT_DELETE':
         return `${platform} account deleted`;
       case 'ACCOUNT_UPDATED':
+      case 'ACCOUNT_UPDATE':
         return `${platform} account updated`;
+      case 'ACCOUNT_VIEW':
+        return `${platform} account viewed`;
+      
+      // User operations
       case 'LOGIN_SUCCESS':
+      case 'USER_LOGIN':
         return 'Successful login';
       case 'LOGIN_FAILED':
         return 'Failed login attempt';
+      case 'USER_LOGOUT':
+        return 'User logged out';
+      case 'USER_REGISTER':
+        return 'User registered';
+      case 'USER_UPDATE_PROFILE':
+        return 'Profile updated';
+      
+      // System operations
+      case 'SYSTEM_BACKUP':
+        return 'System backup completed';
+      case 'SYSTEM_MAINTENANCE':
+        return 'System maintenance';
+      case 'DATA_EXPORT':
+        return 'Data export';
+      case 'DATA_IMPORT':
+        return 'Data import';
+      
+      // Password
       case 'PASSWORD_CHANGED':
         return 'Password changed';
+      
       default:
         return 'Activity recorded';
     }
@@ -182,31 +246,58 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
 
   const getActivityDescription = (log) => {
     const { activityType, targetEntity, details, error } = log;
-    
-    if (activityType === 'ACCOUNT_CREATED' && targetEntity) {
-      return `Account "${targetEntity.username}" was created for ${targetEntity.platform}`;
+    const platform = targetEntity?.platform;
+    const rawUsername =
+      targetEntity?.username ??
+      targetEntity?.entityName ??
+      details?.afterState?.username ??
+      details?.beforeState?.username;
+    const username = typeof rawUsername === 'string' && rawUsername.includes(':')
+      ? rawUsername.split(':')[1]
+      : rawUsername;
+
+    // Account operations
+    if ((activityType === 'ACCOUNT_CREATED' || activityType === 'ACCOUNT_CREATE') && targetEntity) {
+      return `Account "${username || 'unknown'}" was created for ${platform || 'unknown platform'}`;
     }
-    
-    if (activityType === 'ACCOUNT_DELETED' && targetEntity) {
-      return `Account "${targetEntity.username}" on ${targetEntity.platform} was deleted`;
+    if ((activityType === 'ACCOUNT_DELETED' || activityType === 'ACCOUNT_DELETE') && targetEntity) {
+      return `Account "${username || 'unknown'}" on ${platform || 'unknown platform'} was deleted`;
     }
-    
-    if (activityType === 'ACCOUNT_UPDATED' && targetEntity) {
-      return `Account "${targetEntity.username}" on ${targetEntity.platform} was updated`;
+    if ((activityType === 'ACCOUNT_UPDATED' || activityType === 'ACCOUNT_UPDATE') && targetEntity) {
+      return `Account "${username || 'unknown'}" on ${platform || 'unknown platform'} was updated`;
     }
-    
-    if (activityType === 'LOGIN_SUCCESS') {
+    if (activityType === 'ACCOUNT_VIEW' && targetEntity) {
+      return `Viewed account "${username || 'unknown'}" on ${platform || 'unknown platform'}`;
+    }
+
+    // User operations
+    if (activityType === 'LOGIN_SUCCESS' || activityType === 'USER_LOGIN') {
       return 'Successfully logged into your account';
     }
-    
     if (activityType === 'LOGIN_FAILED') {
       return error ? `Failed to login: ${error.message}` : 'Failed to login';
     }
-    
-    if (activityType === 'PASSWORD_CHANGED' && targetEntity) {
-      return `Password was changed for ${targetEntity.platform} account`;
+    if (activityType === 'USER_LOGOUT') {
+      return 'User logged out';
     }
-    
+    if (activityType === 'USER_REGISTER') {
+      return 'User registration completed';
+    }
+    if (activityType === 'USER_UPDATE_PROFILE') {
+      return 'User profile updated';
+    }
+
+    // Password
+    if (activityType === 'PASSWORD_CHANGED' && targetEntity) {
+      return `Password was changed for ${platform || 'unknown platform'} account`;
+    }
+
+    // System operations
+    if (activityType === 'SYSTEM_BACKUP') return 'System backup completed';
+    if (activityType === 'SYSTEM_MAINTENANCE') return 'System maintenance performed';
+    if (activityType === 'DATA_EXPORT') return 'Data export performed';
+    if (activityType === 'DATA_IMPORT') return 'Data import performed';
+
     return details?.description || 'Activity was recorded';
   };
 
@@ -251,11 +342,27 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
     
     // Fall back to activity type icons
     const activityIcons = {
+      // Account operations
       ACCOUNT_CREATED: <UserPlusIcon className="w-5 h-5 text-green-400" />,
+      ACCOUNT_CREATE: <UserPlusIcon className="w-5 h-5 text-green-400" />,
       ACCOUNT_DELETED: <TrashIcon className="w-5 h-5 text-red-400" />,
+      ACCOUNT_DELETE: <TrashIcon className="w-5 h-5 text-red-400" />,
       ACCOUNT_UPDATED: <ArrowPathIcon className="w-5 h-5 text-blue-400" />,
+      ACCOUNT_UPDATE: <ArrowPathIcon className="w-5 h-5 text-blue-400" />,
+      ACCOUNT_VIEW: <EyeIcon className="w-5 h-5 text-gray-300" />,
+      // User operations
       LOGIN_SUCCESS: <CheckCircleIcon className="w-5 h-5 text-green-400" />,
+      USER_LOGIN: <CheckCircleIcon className="w-5 h-5 text-green-400" />,
       LOGIN_FAILED: <XCircleIcon className="w-5 h-5 text-red-400" />,
+      USER_LOGOUT: <ArrowPathIcon className="w-5 h-5 text-gray-300" />,
+      USER_REGISTER: <UserPlusIcon className="w-5 h-5 text-green-400" />,
+      USER_UPDATE_PROFILE: <ArrowPathIcon className="w-5 h-5 text-blue-400" />,
+      // System operations
+      SYSTEM_BACKUP: <ArrowPathIcon className="w-5 h-5 text-purple-400" />,
+      SYSTEM_MAINTENANCE: <ArrowPathIcon className="w-5 h-5 text-yellow-400" />,
+      DATA_EXPORT: <ArrowPathIcon className="w-5 h-5 text-indigo-400" />,
+      DATA_IMPORT: <ArrowPathIcon className="w-5 h-5 text-indigo-400" />,
+      // Password
       PASSWORD_CHANGED: <ArrowPathIcon className="w-5 h-5 text-yellow-400" />
     };
     
@@ -273,11 +380,27 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
     
     // Fall back to activity type colors
     const activityColors = {
+      // Account operations
       ACCOUNT_CREATED: 'bg-green-100 text-green-800',
+      ACCOUNT_CREATE: 'bg-green-100 text-green-800',
       ACCOUNT_DELETED: 'bg-red-100 text-red-800',
+      ACCOUNT_DELETE: 'bg-red-100 text-red-800',
       ACCOUNT_UPDATED: 'bg-blue-100 text-blue-800',
+      ACCOUNT_UPDATE: 'bg-blue-100 text-blue-800',
+      ACCOUNT_VIEW: 'bg-gray-100 text-gray-800',
+      // User operations
       LOGIN_SUCCESS: 'bg-green-100 text-green-800',
+      USER_LOGIN: 'bg-green-100 text-green-800',
       LOGIN_FAILED: 'bg-red-100 text-red-800',
+      USER_LOGOUT: 'bg-gray-100 text-gray-800',
+      USER_REGISTER: 'bg-green-100 text-green-800',
+      USER_UPDATE_PROFILE: 'bg-blue-100 text-blue-800',
+      // System operations
+      SYSTEM_BACKUP: 'bg-purple-100 text-purple-800',
+      SYSTEM_MAINTENANCE: 'bg-yellow-100 text-yellow-800',
+      DATA_EXPORT: 'bg-indigo-100 text-indigo-800',
+      DATA_IMPORT: 'bg-indigo-100 text-indigo-800',
+      // Password
       PASSWORD_CHANGED: 'bg-yellow-100 text-yellow-800'
     };
     
@@ -294,53 +417,30 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
   }
 
   return (
-    <div className="bg-gray-800 shadow-md rounded-lg p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-        <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-          <button
-            className="flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            onClick={() => window.location.href = '/accounts'}
-          >
-            <PlusIcon className="w-5 h-5 mr-2" />
-            <span>Create New Account</span>
-          </button>
-          <button
-            className="flex items-center justify-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-            onClick={() => window.location.href = '/accounts'}
-          >
-            <ClockIcon className="w-5 h-5 mr-2" />
-            <span>View All History</span>
-          </button>
+    <div className={`${minimalist ? '' : 'bg-gray-800 shadow-md rounded-lg p-4 sm:p-6'}`}>
+      {!minimalist && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
         </div>
-      </div>
+      )}
 
       {activities.length === 0 ? (
-        <div className="text-center py-12">
+        <div className={`text-center ${minimalist ? 'py-6' : 'py-12'}`}>
           <div className="text-gray-400">
-            <UserPlusIcon className="mx-auto h-12 w-12 text-gray-500" />
-            <h3 className="text-lg font-medium text-white mb-2">No Recent Activity</h3>
-            <p className="text-gray-400">Start creating accounts to see activity here</p>
-            <div className="mt-6">
-              <button
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                onClick={() => window.location.href = '/accounts'}
-              >
-                <PlusIcon className="w-5 h-5 mr-2" />
-                <span>Create Your First Account</span>
-              </button>
-            </div>
+            <UserPlusIcon className={`mx-auto ${minimalist ? 'h-8 w-8' : 'h-12 w-12'} text-gray-500`} />
+            <h3 className={`font-medium text-white mb-2 ${minimalist ? 'text-sm' : 'text-lg'}`}>No Recent Activity</h3>
+            <p className={`text-gray-400 ${minimalist ? 'text-xs' : 'text-sm'}`}>Start creating accounts to see activity here</p>
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className={`space-y-${minimalist ? '1' : '2'}`}>
           {activities.map((activity, index) => (
             <motion.div
               key={activity.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2 }}
-              className="bg-gray-700 rounded p-2 border border-gray-600 hover:border-gray-500 transition-all duration-200 flex items-center justify-between"
+              className={`${minimalist ? 'bg-gray-700/50 rounded p-2' : 'bg-gray-700 rounded p-2 border border-gray-600 hover:border-gray-500'} transition-all duration-200 flex items-center justify-between`}
               style={{ opacity: 1, transform: 'none' }}
             >
               <div className="flex items-center space-x-2">
@@ -348,16 +448,51 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
                   {getActivityIcon(activity.type, activity.platform)}
                 </div>
                 <div>
-                  <h4 className="text-white text-sm font-medium">{activity.title}</h4>
-                  <div className="flex items-center text-gray-400 text-xs">
-                    <span>{activity.platform}</span>
-                    <span className="mx-1">•</span>
-                    <span>{formatTimestamp(activity.timestamp)}</span>
-                  </div>
+                  <h4 className={`text-white font-medium ${minimalist ? 'text-xs' : 'text-sm'}`}>{activity.title}{activity.username && <span className="ml-1 text-gray-400">({activity.username})</span>}</h4>
+                  {minimalist && (
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-center text-gray-400 text-xs">
+                        <span>{activity.platform}</span>
+                        {activity.username && (
+                          <>
+                            <span className="mx-1">•</span>
+                            <span>{activity.username}</span>
+                          </>
+                        )}
+                        <span className="mx-1">•</span>
+                        <span>{formatTimestamp(activity.timestamp)}</span>
+                      </div>
+                    </div>
+                  )}
+                  {!minimalist && (
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-center text-gray-400 text-xs">
+                        <span>{activity.platform}</span>
+                        {activity.username && (
+                          <>
+                            <span className="mx-1">•</span>
+                            <span>{activity.username}</span>
+                          </>
+                        )}
+                        <span className="mx-1">•</span>
+                        <span>{formatTimestamp(activity.timestamp)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs px-1 py-0.5 rounded ${getActivityColor(activity.type, activity.status)}`}>{activity.status || activity.type.replace('_', ' ')}</span>
+                {minimalist && (
+                  <span className={`text-xs px-1 py-0.5 rounded ${getActivityColor(activity.type, activity.status)}`}>
+                    {activity.type === 'ACCOUNT_CREATED' ? 'Created' :
+                     activity.type === 'ACCOUNT_DELETED' ? 'Deleted' :
+                     activity.type === 'ACCOUNT_UPDATED' ? 'Updated' :
+                     activity.type.replace('_', ' ')}
+                  </span>
+                )}
+                {!minimalist && (
+                  <span className={`text-xs px-1 py-0.5 rounded ${getActivityColor(activity.type, activity.status)}`}>{activity.status || activity.type.replace('_', ' ')}</span>
+                )}
                 {activity.actions[0] && (
                   <button
                     className="p-1 rounded text-gray-400 hover:text-white transition-colors"
@@ -365,7 +500,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
                     aria-label="View Details"
                     onClick={() => activity.actions[0]?.onClick()}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true" className="w-3 h-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true" className={`${minimalist ? 'w-3 h-3' : 'w-3 h-3'}`}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"></path>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"></path>
                     </svg>
@@ -378,7 +513,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null }) =
       )}
       
       {/* Pagination */}
-      {showPagination && pagination.totalPages > 1 && (
+      {!minimalist && showPagination && pagination.totalPages > 1 && (
         <div className="flex justify-center items-center gap-2 mt-6">
           <button
             onClick={() => handlePageChange(pagination.currentPage - 1)}

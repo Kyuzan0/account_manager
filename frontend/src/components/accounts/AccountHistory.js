@@ -155,7 +155,7 @@ const AccountHistory = ({ limit = null }) => {
   return (
     <div className="bg-gray-800 shadow-md rounded-lg p-6">
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Account History</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">Account List</h2>
         
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <div className="flex-1">

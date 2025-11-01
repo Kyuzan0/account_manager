@@ -45,6 +45,7 @@ exports.getUserActivityLogs = async (req, res) => {
       .sort({ 'requestContext.timestamp': -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
+      .populate('userId', 'username email')
       .select('-details.changes -error.stack'); // Exclude verbose fields for list view
     
     const total = await ActivityLog.countDocuments(query);
@@ -98,7 +99,8 @@ exports.getAccountActivityLogs = async (req, res) => {
     const logs = await ActivityLog.find(query)
       .sort({ 'requestContext.timestamp': -1 })
       .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .skip((page - 1) * limit)
+      .populate('userId', 'username email');
     
     const total = await ActivityLog.countDocuments(query);
     

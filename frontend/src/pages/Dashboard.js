@@ -92,27 +92,24 @@ const Dashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Account Form */}
-        <div className="bg-gray-800 rounded-lg p-6">
+        <div className="lg:col-span-2 bg-gray-800 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-4">
             Add New Account
           </h2>
           <AccountForm />
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">
-            Recent Activity
-          </h2>
+        {/* Recent Activity - Minimalist */}
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-lg font-medium text-white mb-3">Recent Activity</h3>
           {loading ? (
-            <div className="flex items-center">
+            <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-              <span className="ml-2 text-gray-300">Loading...</span>
             </div>
           ) : (
-            <RecentActivity key={user?.id} limit={5} />
+            <RecentActivity key={user?.id} limit={3} minimalist={true} />
           )}
         </div>
       </div>
