@@ -3,10 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { accountService } from '../services/accountService';
 import DashboardWidget from '../components/dashboard/DashboardWidget';
 import AccountForm from '../components/accounts/AccountForm';
-import RecentActivity from '../components/logs/RecentActivity';
+import DashboardRecentActivity from '../components/dashboard/DashboardRecentActivity';
 
 const Dashboard = () => {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalAccounts: 0,
     activePlatforms: 0,
@@ -101,16 +101,10 @@ const Dashboard = () => {
           <AccountForm />
         </div>
 
-        {/* Recent Activity - Minimalist */}
+        {/* Recent Activity - Dashboard Version */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-lg font-medium text-white mb-3">Recent Activity</h3>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-            </div>
-          ) : (
-            <RecentActivity key={user?.id} limit={3} minimalist={true} />
-          )}
+          <DashboardRecentActivity limit={3} />
         </div>
       </div>
     </div>

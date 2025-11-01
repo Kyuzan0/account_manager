@@ -5,7 +5,6 @@ import { toast } from 'react-toastify';
 import { motion } from 'framer-motion';
 import {
   ClockIcon,
-  PlusIcon,
   EyeIcon,
   UserPlusIcon,
   TrashIcon,
@@ -142,6 +141,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     };
 
     fetchRecentActivities();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAuthenticated,
     authLoading,
@@ -174,6 +174,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     }
   };
 
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedAccount(null);
@@ -186,9 +187,11 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     }));
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleFilterChange = (newFilters) => {
     // Only update local filters if external filters are not provided
-    if (Object.keys(filters).length === 0) {
+    const hasExternal = !!(filters && Object.keys(filters).length > 0);
+    if (!hasExternal) {
       setLocalFilters(newFilters);
       setPagination(prev => ({
         ...prev,
@@ -318,7 +321,19 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+
+    if (diffHour < 24) {
+      if (diffHour >= 1) return `${diffHour}h ago`;
+      if (diffMin >= 1) return `${diffMin}m ago`;
+      return `${diffSec}s ago`;
+    }
+
+    return date.toLocaleString('en-GB', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -408,10 +423,34 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
   };
 
   if (loading) {
+    const items = Array.from({ length: limit || 3 });
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-300 border-t-primary-500"></div>
-        <span className="ml-2 text-white">Loading recent activities...</span>
+      <div className={`${minimalist ? '' : 'bg-gray-800 shadow-md rounded-lg p-4 sm:p-6'}`}>
+        {!minimalist && (
+          <div className="mb-6">
+            <div className="h-5 w-32 bg-gray-700 rounded animate-pulse" />
+          </div>
+        )}
+        <div className={`${minimalist ? 'space-y-1' : 'space-y-2'}`}>
+          {items.map((_, i) => (
+            <div key={i} className={`${minimalist ? 'bg-gray-700/50' : 'bg-gray-700'} rounded p-2 border border-gray-600`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1 rounded-full bg-gray-600 w-5 h-5 animate-pulse" />
+                  <div className="space-y-1">
+                    <div className={`${minimalist ? 'h-3 w-24' : 'h-4 w-40'} bg-gray-600 rounded animate-pulse`} />
+                    <div className="flex items-center space-x-2">
+                      <div className="h-3 w-16 bg-gray-600 rounded animate-pulse" />
+                      <div className="h-3 w-20 bg-gray-600 rounded animate-pulse" />
+                      <div className="h-3 w-24 bg-gray-600 rounded animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+                <div className="h-6 w-20 bg-gray-600 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -433,7 +472,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
           </div>
         </div>
       ) : (
-        <div className={`space-y-${minimalist ? '1' : '2'}`}>
+        <div className={`${minimalist ? 'space-y-1' : 'space-y-2'}`}>
           {activities.map((activity, index) => (
             <motion.div
               key={activity.id}
@@ -448,17 +487,16 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
                   {getActivityIcon(activity.type, activity.platform)}
                 </div>
                 <div>
-                  <h4 className={`text-white font-medium ${minimalist ? 'text-xs' : 'text-sm'}`}>{activity.title}{activity.username && <span className="ml-1 text-gray-400">({activity.username})</span>}</h4>
+                  <h4 className={`text-white font-medium ${minimalist ? 'text-xs' : 'text-sm'}`}>{activity.title}</h4>
+                  {activity.username && (
+                    <div className={`text-gray-400 ${minimalist ? 'text-xs' : 'text-xs'}`}>
+                      {activity.username}
+                    </div>
+                  )}
                   {minimalist && (
                     <div className="flex flex-col space-y-1">
                       <div className="flex items-center text-gray-400 text-xs">
                         <span>{activity.platform}</span>
-                        {activity.username && (
-                          <>
-                            <span className="mx-1">•</span>
-                            <span>{activity.username}</span>
-                          </>
-                        )}
                         <span className="mx-1">•</span>
                         <span>{formatTimestamp(activity.timestamp)}</span>
                       </div>
@@ -468,12 +506,6 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
                     <div className="flex flex-col space-y-1">
                       <div className="flex items-center text-gray-400 text-xs">
                         <span>{activity.platform}</span>
-                        {activity.username && (
-                          <>
-                            <span className="mx-1">•</span>
-                            <span>{activity.username}</span>
-                          </>
-                        )}
                         <span className="mx-1">•</span>
                         <span>{formatTimestamp(activity.timestamp)}</span>
                       </div>
@@ -484,27 +516,14 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
               <div className="flex items-center gap-2">
                 {minimalist && (
                   <span className={`text-xs px-1 py-0.5 rounded ${getActivityColor(activity.type, activity.status)}`}>
-                    {activity.type === 'ACCOUNT_CREATED' ? 'Created' :
-                     activity.type === 'ACCOUNT_DELETED' ? 'Deleted' :
-                     activity.type === 'ACCOUNT_UPDATED' ? 'Updated' :
-                     activity.type.replace('_', ' ')}
+                    {activity.type === 'ACCOUNT_CREATED' || activity.type === 'ACCOUNT_CREATE' ? 'Account created' :
+                     activity.type === 'ACCOUNT_DELETED' || activity.type === 'ACCOUNT_DELETE' ? 'Account deleted' :
+                     activity.type === 'ACCOUNT_UPDATED' || activity.type === 'ACCOUNT_UPDATE' ? 'Account updated' :
+                     activity.type.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                   </span>
                 )}
                 {!minimalist && (
                   <span className={`text-xs px-1 py-0.5 rounded ${getActivityColor(activity.type, activity.status)}`}>{activity.status || activity.type.replace('_', ' ')}</span>
-                )}
-                {activity.actions[0] && (
-                  <button
-                    className="p-1 rounded text-gray-400 hover:text-white transition-colors"
-                    title="View Details"
-                    aria-label="View Details"
-                    onClick={() => activity.actions[0]?.onClick()}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true" className={`${minimalist ? 'w-3 h-3' : 'w-3 h-3'}`}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"></path>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"></path>
-                    </svg>
-                  </button>
                 )}
               </div>
             </motion.div>
