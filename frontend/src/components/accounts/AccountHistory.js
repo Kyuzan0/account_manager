@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { accountService } from '../../services/accountService';
 import { toast } from 'react-toastify';
 import AccountDetailsModal from './AccountDetailsModal';
+import Pagination from '../common/Pagination';
 
 const AccountHistory = ({ limit = null }) => {
   const [accounts, setAccounts] = useState([]);
@@ -104,22 +105,23 @@ const AccountHistory = ({ limit = null }) => {
     if (window.confirm(`Are you sure you want to delete ${selectedAccounts.length} account(s)?`)) {
       setBulkDeleting(true);
       try {
-        await accountService.bulkDelete(selectedAccounts);
+        const response = await accountService.bulkDelete(selectedAccounts);
+        const deletedCount = response.deletedCount || selectedAccounts.length;
         
         // Refresh accounts after deletion
-        const response = await accountService.getAll({
+        const accountsResponse = await accountService.getAll({
           page: currentPage,
           limit: pageSize,
           ...(selectedPlatform && { platform: selectedPlatform }),
           ...(searchTerm && { search: searchTerm })
         });
-        setAccounts(response.accounts || []);
-        setTotalPages(response.totalPages || 0);
-        setTotal(response.total || 0);
+        setAccounts(accountsResponse.accounts || []);
+        setTotalPages(accountsResponse.totalPages || 0);
+        setTotal(accountsResponse.total || 0);
         
         setSelectedAccounts([]);
         setSelectAll(false);
-        toast.success(`${selectedAccounts.length} account(s) deleted successfully`);
+        toast.success(`Berhasil menghapus ${deletedCount} akun secara massal`);
       } catch (error) {
         console.error('Error bulk deleting accounts:', error);
         toast.error(`Failed to delete accounts: ${error.response?.data?.message || error.message}`);
@@ -133,104 +135,14 @@ const AccountHistory = ({ limit = null }) => {
     return selectedAccounts.includes(accountId);
   };
 
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
   const handlePageSizeChange = (newSize) => {
     setPageSize(newSize);
     setCurrentPage(1); // Reset to first page when changing page size
   };
-
-  const renderPagination = (position = 'bottom') => (
-    <div className={`flex items-center justify-between ${position === 'top' ? 'mb-4' : 'mt-6'}`}>
-      <div className="flex items-center space-x-4">
-        <div className="text-sm text-gray-300">
-          Showing {accounts.length} of {total} accounts
-        </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-300">Show:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="px-3 py-1 border border-gray-600 rounded-md bg-gray-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value={10}>10</option>
-            <option value={100}>100</option>
-            <option value={1000}>1000</option>
-          </select>
-          <span className="text-sm text-gray-300">per page</span>
-        </div>
-      </div>
-      
-      {totalPages > 1 && (
-        <div className="flex items-center space-x-2">
-          <div className="text-sm text-gray-300">
-            Page {currentPage} of {totalPages}
-          </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-              title="First page"
-            >
-              &laquo;
-            </button>
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-            >
-              Previous
-            </button>
-            
-            {/* Page numbers */}
-            {(() => {
-              const pages = [];
-              const maxVisiblePages = 5;
-              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-              
-              if (endPage - startPage + 1 < maxVisiblePages) {
-                startPage = Math.max(1, endPage - maxVisiblePages + 1);
-              }
-              
-              for (let i = startPage; i <= endPage; i++) {
-                pages.push(
-                  <button
-                    key={i}
-                    onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 text-sm border rounded-md ${
-                      i === currentPage
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
-                    }`}
-                  >
-                    {i}
-                  </button>
-                );
-              }
-              
-              return pages;
-            })()}
-            
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-            >
-              Next
-            </button>
-            <button
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-              title="Last page"
-            >
-              &raquo;
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 
   const handleCopy = async (text, type) => {
     try {
@@ -384,7 +296,21 @@ const AccountHistory = ({ limit = null }) => {
         )}
         
         {/* Top Pagination */}
-        {accounts.length > 0 && renderPagination('top')}
+        {accounts.length > 0 && totalPages > 1 && (
+          <div className="mb-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              total={total}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              showPageSizeOptions={true}
+              showJumpToPage={true}
+              maxVisiblePages={10}
+            />
+          </div>
+        )}
       </div>
 
       {accounts.length === 0 ? (
@@ -554,7 +480,21 @@ const AccountHistory = ({ limit = null }) => {
           </div>
 
           {/* Bottom Pagination */}
-          {renderPagination('bottom')}
+          {totalPages > 1 && (
+            <div className="mt-6">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                total={total}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+                showPageSizeOptions={true}
+                showJumpToPage={true}
+                maxVisiblePages={10}
+              />
+            </div>
+          )}
         </>
       )}
       

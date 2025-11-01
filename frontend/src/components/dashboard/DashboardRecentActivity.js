@@ -56,7 +56,7 @@ const DashboardRecentActivity = ({ limit = 3 }) => {
           return {
             id: log._id,
             type: log.activityType,
-            title: getActivityTitle(log.activityType, platform),
+            title: getActivityTitle(log.activityType, platform, log),
             platform: platform,
             username: accountUsername,
             timestamp: log.requestContext.timestamp,
@@ -77,7 +77,10 @@ const DashboardRecentActivity = ({ limit = 3 }) => {
     fetchRecentActivities();
   }, [isAuthenticated, authLoading, user?.id, limit]);
 
-  const getActivityTitle = (activityType, platform) => {
+  const getActivityTitle = (activityType, platform, log) => {
+    // Get deleted count from metadata for bulk operations
+    const deletedCount = log?.details?.metadata?.deletedCount || 0;
+    
     switch (activityType) {
       case 'ACCOUNT_CREATED':
       case 'ACCOUNT_CREATE':
@@ -85,11 +88,19 @@ const DashboardRecentActivity = ({ limit = 3 }) => {
       case 'ACCOUNT_DELETED':
       case 'ACCOUNT_DELETE':
         return `${platform} account deleted`;
+      case 'ACCOUNT_BULK_DELETE':
+        return deletedCount > 0
+          ? `Bulk delete successful: ${deletedCount} accounts deleted`
+          : `Bulk delete successful: Multiple accounts deleted`;
       case 'ACCOUNT_UPDATED':
       case 'ACCOUNT_UPDATE':
         return `${platform} account updated`;
       case 'ACCOUNT_VIEW':
         return `${platform} account viewed`;
+      case 'NAME_BULK_DELETE':
+        return deletedCount > 0
+          ? `Bulk delete successful: ${deletedCount} names deleted`
+          : `Bulk delete successful: Multiple names deleted`;
       case 'LOGIN_SUCCESS':
       case 'USER_LOGIN':
         return 'Successful login';

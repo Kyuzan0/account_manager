@@ -1,41 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-toastify';
 import UploadModal from '../components/names/UploadModal';
+import Pagination from '../components/common/Pagination';
 import { nameService } from '../services/nameService';
 
 const NameData = () => {
   const [nameData, setNameData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const [selectedPlatform, setSelectedPlatform] = useState('all');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(25);
   const [selectedItems, setSelectedItems] = useState([]);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
     total: 0
   });
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [deleteProgress, setDeleteProgress] = useState({
     isDeleting: false,
     progress: 0,
     total: 0
   });
 
-  const fetchNameData = async (page = 1, platform = 'all', limit = pageSize) => {
+  const fetchNameData = useCallback(async (page = 1, platform = 'all', limit = pageSize, sortBy = 'name', sortOrder = 'asc', search = '') => {
     try {
       setLoading(true);
       console.log('DEBUG: Fetching name data from API');
-      const response = await nameService.getAll(page, limit, platform === 'all' ? undefined : platform);
+      const response = await nameService.getAll(
+        page,
+        limit,
+        platform === 'all' ? undefined : platform,
+        sortBy,
+        sortOrder,
+        search
+      );
       console.log('DEBUG: API response:', response);
       
       setNameData(response.names || []);
       setPagination({
-        currentPage: response.currentPage || 1,
-        totalPages: response.totalPages || 1,
-        total: response.total || 0
+        currentPage: Number(response.currentPage) || 1,
+        totalPages: Number(response.totalPages) || 1,
+        total: Number(response.total) || 0
       });
       setSelectedItems([]); // Clear selection when data changes
     } catch (error) {
@@ -50,56 +59,35 @@ const NameData = () => {
       setSelectedItems([]);
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
-  };
-
-  useEffect(() => {
-    fetchNameData(1, selectedPlatform, pageSize);
   }, [pageSize]);
 
   useEffect(() => {
-    // Filter and sort data
-    let filtered = nameData.filter(item => {
-      // Filter by search term
-      if (searchTerm && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
-      }
-      
-      // Filter by platform
-      if (selectedPlatform !== 'all' && item.platform !== selectedPlatform) {
-        return false;
-      }
-      
-      return true;
-    });
+    if (isInitialLoad) {
+      fetchNameData(1, selectedPlatform, pageSize, sortBy, sortOrder, searchTerm);
+    }
+  }, [pageSize, isInitialLoad, fetchNameData, selectedPlatform, sortBy, sortOrder, searchTerm]);
 
-    // Sort data
-    filtered.sort((a, b) => {
-      let aValue = a[sortBy];
-      let bValue = b[sortBy];
-      
-      if (sortBy === 'createdAt' || sortBy === 'updatedAt') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-      
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
+  // Debounced search effect
+  useEffect(() => {
+    if (!isInitialLoad) {
+      const timeoutId = setTimeout(() => {
+        fetchNameData(1, selectedPlatform, pageSize, sortBy, sortOrder, searchTerm);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchTerm, isInitialLoad, fetchNameData, selectedPlatform, pageSize, sortBy, sortOrder]);
 
-    setFilteredData(filtered);
-  }, [nameData, searchTerm, sortBy, sortOrder, selectedPlatform]);
+  // Since filtering and sorting are now done on the backend, we don't need to filter/sort on frontend
+  const filteredData = nameData;
 
   const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
+    const newSortOrder = sortBy === field ? (sortOrder === 'asc' ? 'desc' : 'asc') : 'asc';
+    setSortBy(field);
+    setSortOrder(newSortOrder);
+    // Fetch data with new sorting parameters
+    fetchNameData(1, selectedPlatform, pageSize, field, newSortOrder, searchTerm);
   };
 
   const getPlatformIcon = (platform) => {
@@ -134,40 +122,41 @@ const NameData = () => {
 
   const platforms = ['all', 'general', 'roblox', 'google', 'facebook', 'instagram', 'twitter'];
 
-  const handlePlatformChange = (platform) => {
+  const handlePlatformChange = useCallback((platform) => {
     setSelectedPlatform(platform);
-    fetchNameData(1, platform, pageSize);
-  };
+    fetchNameData(1, platform, pageSize, sortBy, sortOrder, searchTerm);
+  }, [fetchNameData, pageSize, sortBy, sortOrder, searchTerm]);
 
-  const handlePageChange = (page) => {
-    fetchNameData(page, selectedPlatform, pageSize);
-  };
+  const handlePageChange = useCallback((page) => {
+    console.debug('[NameData] onPageChange', { page, selectedPlatform, pageSize, sortBy, sortOrder, searchTerm });
+    fetchNameData(page, selectedPlatform, pageSize, sortBy, sortOrder, searchTerm);
+  }, [fetchNameData, selectedPlatform, pageSize, sortBy, sortOrder, searchTerm]);
 
-  const handlePageSizeChange = (newPageSize) => {
+  const handlePageSizeChange = useCallback((newPageSize) => {
     setPageSize(newPageSize);
-    fetchNameData(1, selectedPlatform, newPageSize);
-  };
+    fetchNameData(1, selectedPlatform, newPageSize, sortBy, sortOrder, searchTerm);
+  }, [fetchNameData, selectedPlatform, sortBy, sortOrder, searchTerm]);
 
-  const handleUploadSuccess = () => {
+  const handleUploadSuccess = useCallback(() => {
     // Refresh data after successful upload
-    fetchNameData(pagination.currentPage, selectedPlatform, pageSize);
-  };
+    fetchNameData(pagination.currentPage, selectedPlatform, pageSize, sortBy, sortOrder, searchTerm);
+  }, [fetchNameData, pagination.currentPage, selectedPlatform, pageSize, sortBy, sortOrder, searchTerm]);
 
-  const handleSelectItem = (itemId) => {
+  const handleSelectItem = useCallback((itemId) => {
     setSelectedItems(prev =>
       prev.includes(itemId)
         ? prev.filter(id => id !== itemId)
         : [...prev, itemId]
     );
-  };
+  }, []);
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     if (selectedItems.length === filteredData.length) {
       setSelectedItems([]);
     } else {
       setSelectedItems(filteredData.map(item => item._id));
     }
-  };
+  }, [selectedItems.length, filteredData]);
 
   const handleDeleteSelected = async () => {
     if (selectedItems.length === 0) return;
@@ -176,12 +165,8 @@ const NameData = () => {
       try {
         // Optimistic update: remove items from UI immediately
         const itemsToDelete = selectedItems;
-        const originalData = [...nameData];
-        const originalFiltered = [...filteredData];
-        
         // Update UI optimistically
         setNameData(prev => prev.filter(item => !itemsToDelete.includes(item._id)));
-        setFilteredData(prev => prev.filter(item => !itemsToDelete.includes(item._id)));
         setSelectedItems([]);
         
         // Show progress
@@ -193,6 +178,7 @@ const NameData = () => {
         
         // Use bulk delete API for better performance
         const response = await nameService.bulkDelete(itemsToDelete);
+        const deletedCount = response.deletedCount || itemsToDelete.length;
         
         // Update progress to complete
         setDeleteProgress(prev => ({
@@ -200,11 +186,21 @@ const NameData = () => {
           progress: prev.total
         }));
         
-        // Update pagination total
-        setPagination(prev => ({
-          ...prev,
-          total: Math.max(0, prev.total - response.deletedCount)
-        }));
+        // Update pagination total and recompute totalPages/currentPage
+        setPagination(prev => {
+          const newTotal = Math.max(0, prev.total - deletedCount);
+          const newTotalPages = Math.max(1, Math.ceil(newTotal / pageSize));
+          const newCurrentPage = Math.min(prev.currentPage, newTotalPages);
+          return {
+            ...prev,
+            total: newTotal,
+            totalPages: newTotalPages,
+            currentPage: newCurrentPage
+          };
+        });
+        
+        // Show success toast
+        toast.success(`Berhasil menghapus ${deletedCount} nama secara massal`);
         
         // Clear progress after a short delay
         setTimeout(() => {
@@ -217,7 +213,7 @@ const NameData = () => {
         // Revert optimistic update on error
         fetchNameData(pagination.currentPage, selectedPlatform, pageSize);
         
-        alert('Failed to delete items. Please try again.');
+        toast.error(`Gagal menghapus nama: ${error.response?.data?.message || error.message}`);
         
         // Clear progress on error
         setDeleteProgress({ isDeleting: false, progress: 0, total: 0 });
@@ -230,17 +226,26 @@ const NameData = () => {
       try {
         // Optimistic update: remove item from UI immediately
         setNameData(prev => prev.filter(item => item._id !== id));
-        setFilteredData(prev => prev.filter(item => item._id !== id));
         setSelectedItems(prev => prev.filter(itemId => itemId !== id));
         
         // Delete from server
         await nameService.delete(id);
         
-        // Update pagination total
-        setPagination(prev => ({
-          ...prev,
-          total: Math.max(0, prev.total - 1)
-        }));
+        // Update pagination total and recompute totalPages/currentPage
+        setPagination(prev => {
+          const newTotal = Math.max(0, prev.total - 1);
+          const newTotalPages = Math.max(1, Math.ceil(newTotal / pageSize));
+          const newCurrentPage = Math.min(prev.currentPage, newTotalPages);
+          return {
+            ...prev,
+            total: newTotal,
+            totalPages: newTotalPages,
+            currentPage: newCurrentPage
+          };
+        });
+        
+        // Show success toast
+        toast.success(`Nama "${name}" berhasil dihapus`);
         
       } catch (error) {
         console.error('Error deleting item:', error);
@@ -248,7 +253,7 @@ const NameData = () => {
         // Revert optimistic update on error
         fetchNameData(pagination.currentPage, selectedPlatform, pageSize);
         
-        alert('Failed to delete item. Please try again.');
+        toast.error(`Gagal menghapus nama: ${error.response?.data?.message || error.message}`);
       }
     }
   };
@@ -303,7 +308,7 @@ const NameData = () => {
             </label>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => handleSort(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="name">Name</option>
@@ -320,7 +325,7 @@ const NameData = () => {
             </label>
             <select
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
+              onChange={(e) => handleSort(sortBy)}
               className="w-full px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="asc">Ascending</option>
@@ -328,20 +333,6 @@ const NameData = () => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">
-              Show
-            </label>
-            <select
-              value={pageSize}
-              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={10}>10</option>
-              <option value={100}>100</option>
-              <option value={1000}>1000</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -400,57 +391,6 @@ const NameData = () => {
               </svg>
               Upload Data
             </button>
-            
-            {/* Pagination Controls */}
-            {!loading && pagination.totalPages > 1 && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handlePageChange(pagination.currentPage - 1)}
-                  disabled={pagination.currentPage === 1}
-                  className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                
-                {/* Page numbers */}
-                <div className="flex space-x-1">
-                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (pagination.totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (pagination.currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                      pageNum = pagination.totalPages - 4 + i;
-                    } else {
-                      pageNum = pagination.currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`px-3 py-1 rounded ${
-                          pageNum === pagination.currentPage
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-700 text-white hover:bg-gray-600'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <button
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
-                  disabled={pagination.currentPage === pagination.totalPages}
-                  className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            )}
             
             <div className="text-gray-400 text-sm">
               Total: {pagination.total} names
@@ -570,59 +510,20 @@ const NameData = () => {
           </div>
         )}
         
-        {/* Pagination */}
+        {/* Modern Pagination Component */}
         {!loading && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-700">
-            <div className="text-gray-400 text-sm">
-              Showing {((pagination.currentPage - 1) * pageSize) + 1} to {Math.min(pagination.currentPage * pageSize, pagination.total)} of {pagination.total} names
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => handlePageChange(pagination.currentPage - 1)}
-                disabled={pagination.currentPage === 1}
-                className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              
-              {/* Page numbers */}
-              <div className="flex space-x-1">
-                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (pagination.totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (pagination.currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                    pageNum = pagination.totalPages - 4 + i;
-                  } else {
-                    pageNum = pagination.currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      className={`px-3 py-1 rounded ${
-                        pageNum === pagination.currentPage
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-700 text-white hover:bg-gray-600'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              <button
-                onClick={() => handlePageChange(pagination.currentPage + 1)}
-                disabled={pagination.currentPage === pagination.totalPages}
-                className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
+          <div className="mt-6">
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              showPageSizeOptions={true}
+              showJumpToPage={true}
+              maxVisiblePages={10}
+            />
           </div>
         )}
       </div>

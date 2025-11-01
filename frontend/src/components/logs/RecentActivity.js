@@ -113,7 +113,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
           return {
             id: log._id,
             type: log.activityType,
-            title: getActivityTitle(log.activityType, platform),
+            title: getActivityTitle(log.activityType, platform, log),
             description: getActivityDescription(log),
             timestamp: log.requestContext.timestamp,
             platform: platform,
@@ -251,7 +251,10 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     }
   };
 
-  const getActivityTitle = (activityType, platform) => {
+  const getActivityTitle = (activityType, platform, log) => {
+    // Get deleted count from metadata for bulk operations
+    const deletedCount = log?.details?.metadata?.deletedCount || 0;
+    
     switch (activityType) {
       // Account operations (support both backend and frontend enums)
       case 'ACCOUNT_CREATED':
@@ -260,11 +263,21 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
       case 'ACCOUNT_DELETED':
       case 'ACCOUNT_DELETE':
         return `${platform} account deleted`;
+      case 'ACCOUNT_BULK_DELETE':
+        return deletedCount > 0
+          ? `Bulk delete successful: ${deletedCount} accounts deleted`
+          : `Bulk delete successful: Multiple accounts deleted`;
       case 'ACCOUNT_UPDATED':
       case 'ACCOUNT_UPDATE':
         return `${platform} account updated`;
       case 'ACCOUNT_VIEW':
         return `${platform} account viewed`;
+      
+      // Name operations
+      case 'NAME_BULK_DELETE':
+        return deletedCount > 0
+          ? `Bulk delete successful: ${deletedCount} names deleted`
+          : `Bulk delete successful: Multiple names deleted`;
       
       // User operations
       case 'LOGIN_SUCCESS':
@@ -301,6 +314,7 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
   const getActivityDescription = (log) => {
     const { activityType, targetEntity, details, error } = log;
     const platform = targetEntity?.platform;
+    const deletedCount = details?.metadata?.deletedCount || 0;
     const rawUsername =
       targetEntity?.username ??
       targetEntity?.entityName ??
@@ -317,11 +331,23 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     if ((activityType === 'ACCOUNT_DELETED' || activityType === 'ACCOUNT_DELETE') && targetEntity) {
       return `Account "${username || 'unknown'}" on ${platform || 'unknown platform'} was deleted`;
     }
+    if (activityType === 'ACCOUNT_BULK_DELETE') {
+      return deletedCount > 0
+        ? `Successfully deleted ${deletedCount} accounts in bulk operation`
+        : 'Successfully deleted multiple accounts in bulk operation';
+    }
     if ((activityType === 'ACCOUNT_UPDATED' || activityType === 'ACCOUNT_UPDATE') && targetEntity) {
       return `Account "${username || 'unknown'}" on ${platform || 'unknown platform'} was updated`;
     }
     if (activityType === 'ACCOUNT_VIEW' && targetEntity) {
       return `Viewed account "${username || 'unknown'}" on ${platform || 'unknown platform'}`;
+    }
+
+    // Name operations
+    if (activityType === 'NAME_BULK_DELETE') {
+      return deletedCount > 0
+        ? `Successfully deleted ${deletedCount} names in bulk operation`
+        : 'Successfully deleted multiple names in bulk operation';
     }
 
     // User operations
@@ -400,9 +426,12 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
       ACCOUNT_CREATE: <UserPlusIcon className="w-5 h-5 text-green-400" />,
       ACCOUNT_DELETED: <TrashIcon className="w-5 h-5 text-red-400" />,
       ACCOUNT_DELETE: <TrashIcon className="w-5 h-5 text-red-400" />,
+      ACCOUNT_BULK_DELETE: <TrashIcon className="w-5 h-5 text-red-400" />,
       ACCOUNT_UPDATED: <ArrowPathIcon className="w-5 h-5 text-blue-400" />,
       ACCOUNT_UPDATE: <ArrowPathIcon className="w-5 h-5 text-blue-400" />,
       ACCOUNT_VIEW: <EyeIcon className="w-5 h-5 text-gray-300" />,
+      // Name operations
+      NAME_BULK_DELETE: <TrashIcon className="w-5 h-5 text-red-400" />,
       // User operations
       LOGIN_SUCCESS: <CheckCircleIcon className="w-5 h-5 text-green-400" />,
       USER_LOGIN: <CheckCircleIcon className="w-5 h-5 text-green-400" />,
@@ -438,9 +467,12 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
       ACCOUNT_CREATE: 'bg-green-100 text-green-800',
       ACCOUNT_DELETED: 'bg-red-100 text-red-800',
       ACCOUNT_DELETE: 'bg-red-100 text-red-800',
+      ACCOUNT_BULK_DELETE: 'bg-red-100 text-red-800',
       ACCOUNT_UPDATED: 'bg-blue-100 text-blue-800',
       ACCOUNT_UPDATE: 'bg-blue-100 text-blue-800',
       ACCOUNT_VIEW: 'bg-gray-100 text-gray-800',
+      // Name operations
+      NAME_BULK_DELETE: 'bg-red-100 text-red-800',
       // User operations
       LOGIN_SUCCESS: 'bg-green-100 text-green-800',
       USER_LOGIN: 'bg-green-100 text-green-800',

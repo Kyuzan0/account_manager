@@ -1,4 +1,5 @@
 const NameData = require('../models/NameData');
+const ActivityLog = require('../models/ActivityLog');
 const { validationResult } = require('express-validator');
 const fs = require('fs');
 const path = require('path');
@@ -8,15 +9,31 @@ const xlsx = require('xlsx');
 // Get all names
 exports.getNames = async (req, res) => {
   try {
-    const { page = 1, limit = 10, platform } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      platform,
+      sortBy = 'name',
+      sortOrder = 'asc',
+      search
+    } = req.query;
     const query = {};
     
     if (platform && platform !== 'all') {
       query.platform = platform;
     }
 
+    // Add search filter if provided
+    if (search) {
+      query.name = { $regex: search, $options: 'i' };
+    }
+
+    // Create sort object based on parameters
+    const sortObject = {};
+    sortObject[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
     const names = await NameData.find(query)
-      .sort({ createdAt: -1 })
+      .sort(sortObject)
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
@@ -26,7 +43,10 @@ exports.getNames = async (req, res) => {
       names,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
-      total
+      total,
+      sortBy,
+      sortOrder,
+      search
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -334,6 +354,9 @@ exports.deleteName = async (req, res) => {
 
 // Bulk delete names
 exports.bulkDeleteNames = async (req, res) => {
+  const startTime = Date.now();
+  let activityLog = null;
+  
   try {
     const { ids } = req.body;
     
@@ -343,10 +366,62 @@ exports.bulkDeleteNames = async (req, res) => {
 
     console.log(`DEBUG: Bulk deleting ${ids.length} names`);
     
+    // Find names to get their details before deletion
+    const namesToDelete = await NameData.find({
+      _id: { $in: ids }
+    });
+
+    // Store names details for logging
+    const namesDetails = namesToDelete.map(name => ({
+      _id: name._id,
+      name: name.name,
+      platform: name.platform,
+      source: name.source,
+      createdAt: name.createdAt
+    }));
+
     // Use deleteMany for better performance
     const result = await NameData.deleteMany({ _id: { $in: ids } });
     
     console.log(`DEBUG: Successfully deleted ${result.deletedCount} names`);
+    
+    // Log successful bulk deletion
+    try {
+      activityLog = new ActivityLog({
+        activityType: 'NAME_BULK_DELETE',
+        status: 'SUCCESS',
+        userId: req.user.id,
+        targetEntity: {
+          entityType: 'NameData',
+          entityIds: ids,
+          entityNames: namesDetails.map(name => name.name),
+          platforms: [...new Set(namesDetails.map(name => name.platform))]
+        },
+        requestContext: {
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('User-Agent'),
+          endpoint: '/api/names/bulk',
+          method: 'DELETE',
+          timestamp: new Date()
+        },
+        details: {
+          beforeState: namesDetails,
+          afterState: null,
+          metadata: {
+            deletedCount: result.deletedCount,
+            requestedCount: ids.length
+          }
+        },
+        performance: {
+          duration: Date.now() - startTime
+        }
+      });
+      
+      // Save log asynchronously without waiting
+      activityLog.save().catch(err => console.error('Failed to save activity log:', err));
+    } catch (logError) {
+      console.error('Error creating activity log:', logError);
+    }
     
     res.json({
       message: `Successfully deleted ${result.deletedCount} names`,
@@ -355,6 +430,45 @@ exports.bulkDeleteNames = async (req, res) => {
     });
   } catch (error) {
     console.log('DEBUG: Error in bulk delete:', error);
+    
+    // Log unexpected error
+    try {
+      activityLog = new ActivityLog({
+        activityType: 'NAME_BULK_DELETE',
+        status: 'FAILURE',
+        userId: req.user.id,
+        targetEntity: {
+          entityType: 'NameData',
+          entityIds: req.body.ids || [],
+          entityNames: [],
+          platforms: []
+        },
+        requestContext: {
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('User-Agent'),
+          endpoint: '/api/names/bulk',
+          method: 'DELETE',
+          timestamp: new Date()
+        },
+        details: {
+          beforeState: null,
+          afterState: null
+        },
+        error: {
+          message: error.message,
+          stack: error.stack
+        },
+        performance: {
+          duration: Date.now() - startTime
+        }
+      });
+      
+      // Save log asynchronously without waiting
+      activityLog.save().catch(err => console.error('Failed to save activity log:', err));
+    } catch (logError) {
+      console.error('Error creating activity log:', logError);
+    }
+    
     res.status(500).json({ message: error.message });
   }
 };

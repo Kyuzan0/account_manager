@@ -41,11 +41,14 @@ api.interceptors.response.use(
 
 export const nameService = {
   // Get all names
-  getAll: async (page = 1, limit = 10, platform) => {
-    console.log('DEBUG: getAll called with params:', { page, limit, platform });
-    const params = { page, limit };
-    if (platform) {
+  getAll: async (page = 1, limit = 10, platform, sortBy = 'name', sortOrder = 'asc', search = '') => {
+    console.log('DEBUG: getAll called with params:', { page, limit, platform, sortBy, sortOrder, search });
+    const params = { page, limit, sortBy, sortOrder };
+    if (platform && platform !== 'all') {
       params.platform = platform;
+    }
+    if (search) {
+      params.search = search;
     }
     const response = await api.get('/names', { params });
     console.log('DEBUG: getAll response:', response.data);

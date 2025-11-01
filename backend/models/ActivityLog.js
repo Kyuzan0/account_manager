@@ -21,6 +21,11 @@ const activityLogSchema = new mongoose.Schema({
       'ACCOUNT_VIEW',
       'ACCOUNT_BULK_DELETE',
       
+      // Name operations
+      'NAME_CREATE',
+      'NAME_DELETE',
+      'NAME_BULK_DELETE',
+      
       // User operations (for future expansion)
       'USER_LOGIN',
       'USER_LOGOUT',
