@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { accountService } from '../../services/accountService';
 import { activityLogService } from '../../services/activityLogService';
 import { toast } from 'react-toastify';
@@ -10,7 +10,10 @@ import {
   TrashIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  MagnifyingGlassIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import AccountDetailsModal from '../accounts/AccountDetailsModal';
@@ -20,6 +23,8 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [platformFilter, setPlatformFilter] = useState('');
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -35,6 +40,20 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
   });
 
   const { isAuthenticated, loading: authLoading, user } = useAuth();
+
+  const getActivityActions = useCallback((log, isAccountActivity, accountId) => {
+    const actions = [];
+    
+    if (isAccountActivity && accountId) {
+      actions.push({
+        label: 'View Details',
+        icon: <EyeIcon className="w-4 h-4" />,
+        onClick: () => handleViewDetails(accountId)
+      });
+    }
+    
+    return actions;
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated || authLoading) {
@@ -61,6 +80,10 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
         if (activeFilters.status) params.status = activeFilters.status;
         if (activeFilters.startDate) params.startDate = activeFilters.startDate;
         if (activeFilters.endDate) params.endDate = activeFilters.endDate;
+        
+        // Add search and platform filters
+        if (searchTerm) params.search = searchTerm;
+        if (platformFilter) params.platform = platformFilter;
         
         // Get activity logs from API
         const response = await activityLogService.getUserActivityLogs(params);
@@ -141,21 +164,18 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     };
 
     fetchRecentActivities();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAuthenticated,
     authLoading,
     user?.id,
+    user?.name,
     limit,
     pagination.currentPage,
-    filters?.activityType,
-    filters?.status,
-    filters?.startDate,
-    filters?.endDate,
-    localFilters.activityType,
-    localFilters.status,
-    localFilters.startDate,
-    localFilters.endDate
+    searchTerm,
+    platformFilter,
+    filters,
+    localFilters,
+    getActivityActions
   ]);
 
   const handleViewDetails = async (accountId) => {
@@ -184,6 +204,37 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     setPagination(prev => ({
       ...prev,
       currentPage: newPage
+    }));
+  };
+
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+    setPagination(prev => ({
+      ...prev,
+      currentPage: 1 // Reset to first page when searching
+    }));
+  };
+
+  const handlePlatformFilter = (e) => {
+    setPlatformFilter(e.target.value);
+    setPagination(prev => ({
+      ...prev,
+      currentPage: 1 // Reset to first page when filtering
+    }));
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setPlatformFilter('');
+    setLocalFilters({
+      activityType: '',
+      status: '',
+      startDate: '',
+      endDate: ''
+    });
+    setPagination(prev => ({
+      ...prev,
+      currentPage: 1
     }));
   };
 
@@ -304,19 +355,6 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     return details?.description || 'Activity was recorded';
   };
 
-  const getActivityActions = (log, isAccountActivity, accountId) => {
-    const actions = [];
-    
-    if (isAccountActivity && accountId) {
-      actions.push({
-        label: 'View Details',
-        icon: <EyeIcon className="w-4 h-4" />,
-        onClick: () => handleViewDetails(accountId)
-      });
-    }
-    
-    return actions;
-  };
 
 
   const formatTimestamp = (timestamp) => {
@@ -459,7 +497,154 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
     <div className={`${minimalist ? '' : 'bg-gray-800 shadow-md rounded-lg p-4 sm:p-6'}`}>
       {!minimalist && (
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
+          <h2 className="text-lg font-semibold text-white mb-4">Recent Activity</h2>
+          
+          {/* Simplified Search and Filter Bar */}
+          <div className="bg-gray-700 rounded-lg p-3 space-y-3">
+            {/* Search Bar with Clear Button */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                className="block w-full pl-10 pr-10 py-2 border border-gray-600 rounded-md leading-5 bg-gray-600 text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Quick search..."
+                value={searchTerm}
+                onChange={handleSearch}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setPagination(prev => ({ ...prev, currentPage: 1 }));
+                  }}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <XCircleIcon className="h-4 w-4 text-gray-400 hover:text-gray-300" />
+                </button>
+              )}
+            </div>
+
+            {/* Quick Filters - All in One Row */}
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Platform Filter */}
+              <select
+                className="px-3 py-1.5 text-sm border border-gray-600 rounded-md bg-gray-600 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={platformFilter}
+                onChange={handlePlatformFilter}
+              >
+                <option value="">All Platforms</option>
+                <option value="roblox">Roblox</option>
+                <option value="google">Google</option>
+                <option value="facebook">Facebook</option>
+                <option value="instagram">Instagram</option>
+                <option value="twitter">Twitter</option>
+              </select>
+
+              {/* Activity Type Filter */}
+              <select
+                className="px-3 py-1.5 text-sm border border-gray-600 rounded-md bg-gray-600 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={localFilters.activityType}
+                onChange={(e) => handleFilterChange({ ...localFilters, activityType: e.target.value })}
+              >
+                <option value="">All Activities</option>
+                <option value="ACCOUNT_CREATE">Created</option>
+                <option value="ACCOUNT_UPDATE">Updated</option>
+                <option value="ACCOUNT_DELETE">Deleted</option>
+                <option value="ACCOUNT_VIEW">Viewed</option>
+                <option value="USER_LOGIN">Login</option>
+                <option value="USER_LOGOUT">Logout</option>
+              </select>
+
+              {/* Status Filter */}
+              <select
+                className="px-3 py-1.5 text-sm border border-gray-600 rounded-md bg-gray-600 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={localFilters.status}
+                onChange={(e) => handleFilterChange({ ...localFilters, status: e.target.value })}
+              >
+                <option value="">All Status</option>
+                <option value="SUCCESS">Success</option>
+                <option value="FAILURE">Failed</option>
+                <option value="PENDING">Pending</option>
+              </select>
+
+              {/* Clear Filters Button */}
+              {(searchTerm || platformFilter || localFilters.activityType || localFilters.status) && (
+                <button
+                  onClick={clearFilters}
+                  className="px-3 py-1.5 text-sm border border-red-600 rounded-md text-red-400 bg-gray-600 hover:bg-red-900/20 focus:outline-none focus:ring-1 focus:ring-red-500 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top Pagination */}
+      {!minimalist && showPagination && pagination.totalPages > 1 && (
+        <div className="flex justify-between items-center mb-4">
+          <div className="text-sm text-gray-400">
+            Showing {((pagination.currentPage - 1) * limit) + 1} to {Math.min(pagination.currentPage * limit, pagination.total)} of {pagination.total} activities
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
+              disabled={!pagination.hasPrev}
+              className={`relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                pagination.hasPrev
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <ChevronLeftIcon className="h-4 w-4 mr-1" />
+              Previous
+            </button>
+            
+            <div className="flex items-center">
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                let pageNum;
+                if (pagination.totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (pagination.currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                  pageNum = pagination.totalPages - 4 + i;
+                } else {
+                  pageNum = pagination.currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`relative inline-flex items-center px-3 py-2 text-sm font-medium ${
+                      pagination.currentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
+              disabled={!pagination.hasNext}
+              className={`relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                pagination.hasNext
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Next
+              <ChevronRightIcon className="h-4 w-4 ml-1" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -531,26 +716,68 @@ const RecentActivity = ({ limit = 5, showPagination = false, filters = null, min
         </div>
       )}
       
-      {/* Pagination */}
+      {/* Bottom Pagination */}
       {!minimalist && showPagination && pagination.totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 mt-6">
-          <button
-            onClick={() => handlePageChange(pagination.currentPage - 1)}
-            disabled={!pagination.hasPrev}
-            className={`px-3 py-1 rounded ${pagination.hasPrev ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
-          >
-            Previous
-          </button>
-          <span className="text-white">
-            Page {pagination.currentPage} of {pagination.totalPages}
-          </span>
-          <button
-            onClick={() => handlePageChange(pagination.currentPage + 1)}
-            disabled={!pagination.hasNext}
-            className={`px-3 py-1 rounded ${pagination.hasNext ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
-          >
-            Next
-          </button>
+        <div className="flex justify-between items-center mt-6">
+          <div className="text-sm text-gray-400">
+            Showing {((pagination.currentPage - 1) * limit) + 1} to {Math.min(pagination.currentPage * limit, pagination.total)} of {pagination.total} activities
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
+              disabled={!pagination.hasPrev}
+              className={`relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                pagination.hasPrev
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <ChevronLeftIcon className="h-4 w-4 mr-1" />
+              Previous
+            </button>
+            
+            <div className="flex items-center">
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                let pageNum;
+                if (pagination.totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (pagination.currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                  pageNum = pagination.totalPages - 4 + i;
+                } else {
+                  pageNum = pagination.currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`relative inline-flex items-center px-3 py-2 text-sm font-medium ${
+                      pagination.currentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
+              disabled={!pagination.hasNext}
+              className={`relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                pagination.hasNext
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Next
+              <ChevronRightIcon className="h-4 w-4 ml-1" />
+            </button>
+          </div>
         </div>
       )}
       

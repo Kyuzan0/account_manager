@@ -9,13 +9,15 @@ exports.getUserActivityLogs = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { 
-      page = 1, 
-      limit = 20, 
-      activityType, 
-      status, 
-      startDate, 
-      endDate 
+    const {
+      page = 1,
+      limit = 20,
+      activityType,
+      status,
+      startDate,
+      endDate,
+      search,
+      platform
     } = req.query;
     
     // Build query
@@ -27,6 +29,21 @@ exports.getUserActivityLogs = async (req, res) => {
     
     if (status) {
       query.status = status;
+    }
+    
+    if (platform) {
+      query['targetEntity.platform'] = platform;
+    }
+    
+    if (search) {
+      // Search in username, entityName, and activity type
+      query.$or = [
+        { 'targetEntity.username': { $regex: search, $options: 'i' } },
+        { 'targetEntity.entityName': { $regex: search, $options: 'i' } },
+        { 'details.afterState.username': { $regex: search, $options: 'i' } },
+        { 'details.beforeState.username': { $regex: search, $options: 'i' } },
+        { activityType: { $regex: search, $options: 'i' } }
+      ];
     }
     
     // Add date range filter if provided
@@ -73,11 +90,13 @@ exports.getAccountActivityLogs = async (req, res) => {
     }
 
     const { accountId } = req.params;
-    const { 
-      page = 1, 
-      limit = 20, 
-      activityType, 
-      status 
+    const {
+      page = 1,
+      limit = 20,
+      activityType,
+      status,
+      search,
+      platform
     } = req.query;
     
     // Build query
@@ -93,6 +112,21 @@ exports.getAccountActivityLogs = async (req, res) => {
     
     if (status) {
       query.status = status;
+    }
+    
+    if (platform) {
+      query['targetEntity.platform'] = platform;
+    }
+    
+    if (search) {
+      // Search in username, entityName, and activity type
+      query.$or = [
+        { 'targetEntity.username': { $regex: search, $options: 'i' } },
+        { 'targetEntity.entityName': { $regex: search, $options: 'i' } },
+        { 'details.afterState.username': { $regex: search, $options: 'i' } },
+        { 'details.beforeState.username': { $regex: search, $options: 'i' } },
+        { activityType: { $regex: search, $options: 'i' } }
+      ];
     }
     
     // Execute query with pagination
@@ -281,13 +315,15 @@ exports.getRecentActivities = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { 
-      page = 1, 
-      limit = 50, 
-      activityType, 
-      status, 
+    const {
+      page = 1,
+      limit = 50,
+      activityType,
+      status,
       userId,
-      flaggedOnly = false
+      flaggedOnly = false,
+      search,
+      platform
     } = req.query;
     
     // Build query
@@ -307,6 +343,21 @@ exports.getRecentActivities = async (req, res) => {
     
     if (flaggedOnly === 'true') {
       query['security.flagged'] = true;
+    }
+    
+    if (platform) {
+      query['targetEntity.platform'] = platform;
+    }
+    
+    if (search) {
+      // Search in username, entityName, and activity type
+      query.$or = [
+        { 'targetEntity.username': { $regex: search, $options: 'i' } },
+        { 'targetEntity.entityName': { $regex: search, $options: 'i' } },
+        { 'details.afterState.username': { $regex: search, $options: 'i' } },
+        { 'details.beforeState.username': { $regex: search, $options: 'i' } },
+        { activityType: { $regex: search, $options: 'i' } }
+      ];
     }
     
     // Execute query with pagination
